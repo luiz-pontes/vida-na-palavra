@@ -213,6 +213,8 @@ if "is_admin" not in st.session_state:
     st.session_state["is_admin"] = False
 if "data_devocional" not in st.session_state:
     st.session_state["data_devocional"] = date.today()
+if "favoritos" not in st.session_state:
+    st.session_state["favoritos"] = []
 
 # ==========================================
 # 4. TELA DE LOGIN
@@ -245,9 +247,6 @@ if not st.session_state["logged_in"]:
                         st.error("Sua assinatura está inativa. Verifique seu acesso.")
                 else:
                     st.error("E-mail ou senha incorretos. Tente novamente.")
-
-    st.caption("ℹ️ **Acesso Cliente:** `cliente@vidanapalavra.com` | Senha: `123456`")
-    st.caption("⚙️ **Acesso Admin:** `admin@vidanapalavra.com` | Senha: `admin123`")
 
 # ==========================================
 # 5. ÁREA RESTRITA (APÓS AUTENTICAÇÃO)
@@ -320,6 +319,20 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
+            # Botão de Favoritar
+            if st.button("⭐ Salvar nos Favoritos"):
+                novo_favorito = {
+                    "data": st.session_state['data_devocional'].strftime('%d/%m/%Y'),
+                    "referencia": referencia,
+                    "versiculo": versiculo,
+                    "mensagem": mensagem
+                }
+                if novo_favorito not in st.session_state["favoritos"]:
+                    st.session_state["favoritos"].append(novo_favorito)
+                    st.success("Versículo adicionado aos Favoritos com sucesso!")
+                else:
+                    st.warning("Este versículo já está na sua lista de favoritos.")
+
             st.markdown(f"""
                 <div class="mensagem-card">
                     <div class="mensagem-titulo">💡 Fortalecimento Espiritual</div>
@@ -352,6 +365,16 @@ else:
 
         registros = buscar_diario_usuario(st.session_state['user_email'])
         if registros:
+            # Botão de Impressão / PDF
+            if st.button("🖨️ Imprimir / Salvar Diário em PDF"):
+                st.components.v1.html(
+                    "<script>window.print();</script>",
+                    height=0,
+                    width=0
+                )
+
+            st.write("")  # Espaçamento
+
             for d_str, reftxt in registros:
                 try:
                     data_fmt = datetime.strptime(d_str, "%Y-%m-%d").strftime("%d/%m/%Y")
@@ -366,9 +389,22 @@ else:
     # --- TELA 3: FAVORITOS ---
     elif menu == "Favoritos":
         st.title("⭐ Versículos Favoritos")
-        st.info("Em breve você poderá marcar versículos como favoritos para rápida consulta.")
+        st.write("Sua coleção de versículos e mensagens marcados para rápida consulta:")
+        st.divider()
 
-    # --- TELA 4: PAINEL ADMIN (GESTÃO DE DEVOCIONAIS) ---
+        if not st.session_state["favoritos"]:
+            st.info("Você ainda não guardou nenhum versículo. Clique no botão '⭐ Salvar nos Favoritos' enquanto lê o devocional diário!")
+        else:
+            for idx, item in enumerate(st.session_state["favoritos"]):
+                with st.expander(f"📖 {item['referencia']} ({item['data']})"):
+                    st.write(f"*\"{item['versiculo']}\"*")
+                    st.caption(f"💡 {item['mensagem']}")
+                    
+                    if st.button("Remover dos Favoritos", key=f"rem_{idx}"):
+                        st.session_state["favoritos"].pop(idx)
+                        st.rerun()
+
+    # --- TELA 4: PAINEL ADMIN ---
     elif menu == "Painel Admin" and st.session_state["is_admin"]:
         st.title("⚙️ Painel do Administrador")
         st.subheader("Gerenciamento de Devocionais Diários")
@@ -378,7 +414,6 @@ else:
         data_admin = st.date_input("Selecione a Data do Devocional:", value=date.today(), format="DD/MM/YYYY")
         data_admin_str = data_admin.strftime("%Y-%m-%d")
 
-        # Verifica se já existe conteúdo salvo para a data selecionada
         existente = buscar_devocional_por_data(data_admin_str)
         ref_val = existente[0] if existente else ""
         ver_val = existente[1] if existente else ""
