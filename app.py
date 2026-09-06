@@ -404,8 +404,37 @@ else:
                         st.session_state["favoritos"].pop(idx)
                         st.rerun()
 
-    # --- TELA 4: PAINEL ADMIN ---
-    elif menu == "Painel Admin" and st.session_state["is_admin"]:
+    # --- TELA: PAINEL ADMIN ---
+elif menu == "Painel Admin":
+    st.title("⚙️ Painel do Administrador")
+
+    # --- SEÇÃO 1: CADASTRO DE USUÁRIOS ---
+    st.subheader("👥 Cadastrar Novo Usuário")
+    with st.form("form_novo_usuario", clear_on_submit=True):
+        novo_email = st.text_input("E-mail do usuário:")
+        nova_senha = st.text_input("Senha provisória:", type="password")
+        btn_cadastrar = st.form_submit_button("Cadastrar Usuário")
+
+        if btn_cadastrar:
+            if novo_email and nova_senha:
+                # Chama a função de criar usuário no banco
+                sucesso, msg = criar_usuario(
+                    novo_email, nova_senha, "usuario"
+                )
+                if sucesso:
+                    st.success(
+                        f"Usuário {novo_email} cadastrado com sucesso!"
+                    )
+                else:
+                    st.warning(msg)
+            else:
+                st.error("Preencha todos os campos!")
+
+    st.divider()
+
+    # --- SEÇÃO 2: GERENCIAMENTO DE DEVOCIONAIS ---
+    st.subheader("📖 Gerenciamento de Devocionais Diários")
+    # (Mantenha o restante do código original de devocionais aqui abaixo)elif menu == "Painel Admin" and st.session_state["is_admin"]:
         st.title("⚙️ Painel do Administrador")
         st.subheader("Gerenciamento de Devocionais Diários")
         st.write("Cadastre ou edite o conteúdo espiritual para qualquer dia do ano.")
