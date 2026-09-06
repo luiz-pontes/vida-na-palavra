@@ -407,7 +407,7 @@ else:
     elif menu == "Favoritos":
     # (conteúdo da tela de favoritos)
 
-elif menu == "Painel Admin":
+    elif menu == "Painel Admin":
     st.title("⚙️ Painel do Administrador")
 
     # --- CADASTRO DE USUÁRIOS ---
