@@ -426,7 +426,7 @@ elif menu == "Favoritos":
                     st.success(
                         f"Usuário {novo_email} cadastrado com sucesso!"
                     )
-                else:
+            else:
                     st.warning(msg)
             else:
                 st.error("Preencha todos os campos!")
