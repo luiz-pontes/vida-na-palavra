@@ -404,7 +404,7 @@ else:
                         st.session_state["favoritos"].pop(idx)
                         st.rerun()
 
-    elif menu == "Favoritos":
+elif menu == "Favoritos":
     # (conteúdo da tela de favoritos)
 
     elif menu == "Painel Admin":
