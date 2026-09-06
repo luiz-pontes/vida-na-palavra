@@ -405,7 +405,7 @@ else:
                         st.rerun()
 
     # --- TELA: PAINEL ADMIN ---
-elif menu == "Painel Admin":
+    elif menu == "Painel Admin":
     st.title("⚙️ Painel do Administrador")
 
     # --- SEÇÃO 1: CADASTRO DE USUÁRIOS ---
