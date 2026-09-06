@@ -404,11 +404,13 @@ else:
                         st.session_state["favoritos"].pop(idx)
                         st.rerun()
 
-    # --- TELA: PAINEL ADMIN ---
-    elif menu == "Painel Admin":
+    elif menu == "Favoritos":
+    # (conteúdo da tela de favoritos)
+
+elif menu == "Painel Admin":
     st.title("⚙️ Painel do Administrador")
 
-    # --- SEÇÃO 1: CADASTRO DE USUÁRIOS ---
+    # --- CADASTRO DE USUÁRIOS ---
     st.subheader("👥 Cadastrar Novo Usuário")
     with st.form("form_novo_usuario", clear_on_submit=True):
         novo_email = st.text_input("E-mail do usuário:")
@@ -417,7 +419,6 @@ else:
 
         if btn_cadastrar:
             if novo_email and nova_senha:
-                # Chama a função de criar usuário no banco
                 sucesso, msg = criar_usuario(
                     novo_email, nova_senha, "usuario"
                 )
@@ -432,43 +433,9 @@ else:
 
     st.divider()
 
-    # --- SEÇÃO 2: GERENCIAMENTO DE DEVOCIONAIS ---
+    # --- GERENCIAMENTO DE DEVOCIONAIS ---
     st.subheader("📖 Gerenciamento de Devocionais Diários")
-    # (Mantenha o restante do código original de devocionais aqui abaixo)elif menu == "Painel Admin" and st.session_state["is_admin"]:
-        st.title("⚙️ Painel do Administrador")
-        st.subheader("Gerenciamento de Devocionais Diários")
-        st.write("Cadastre ou edite o conteúdo espiritual para qualquer dia do ano.")
-        st.divider()
+    # (mantenha a lógica de edição de devocionais aqui)
 
-        data_admin = st.date_input("Selecione a Data do Devocional:", value=date.today(), format="DD/MM/YYYY")
-        data_admin_str = data_admin.strftime("%Y-%m-%d")
-
-        existente = buscar_devocional_por_data(data_admin_str)
-        ref_val = existente[0] if existente else ""
-        ver_val = existente[1] if existente else ""
-        msg_val = existente[2] if existente else ""
-
-        if existente:
-            st.success(f"ℹ️ Já existe um devocional cadastrado para **{data_admin.strftime('%d/%m/%Y')}**. Você pode editá-lo abaixo.")
-        else:
-            st.info(f"➕ Nenhum devocional encontrado para **{data_admin.strftime('%d/%m/%Y')}**. Preencha os campos para cadastrar.")
-
-        with st.form("form_devocional_admin"):
-            ref_input = st.text_input("Referência Bíblica (ex: João 3:16)", value=ref_val)
-            ver_input = st.text_area("Texto do Versículo", value=ver_val, height=100)
-            msg_input = st.text_area("Mensagem de Fortalecimento Espiritual", value=msg_val, height=150)
-            
-            salvar_btn = st.form_submit_button("Salvar Devocional", type="primary")
-
-            if salvar_btn:
-                if not ref_input.strip() or not ver_input.strip() or not msg_input.strip():
-                    st.warning("Preencha todos os campos antes de salvar.")
-                else:
-                    salvar_ou_atualizar_devocional(
-                        data_admin_str,
-                        ref_input.strip(),
-                        ver_input.strip(),
-                        msg_input.strip()
-                    )
-                    st.success(f"Devocional do dia **{data_admin.strftime('%d/%m/%Y')}** salvo com sucesso!")
-                    st.rerun()
+else:
+    st.warning("Selecione uma opção no menu lateral.")
