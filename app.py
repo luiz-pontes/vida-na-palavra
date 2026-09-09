@@ -1,454 +1,215 @@
-import hashlib
-import sqlite3
-from datetime import datetime
 import streamlit as st
-import streamlit.components.v1 as components
+import datetime
+import json
+import os
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(
-    page_title="Vida Na Palavra",
-    page_icon="📖",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+# Configuração da Página
+st.set_page_config(page_title="Vida Na Palavra", page_icon="📖", layout="wide")
 
+# Arquivos de Armazenamento Persistente
+USUARIOS_FILE = "usuarios.json"
+DEVOCIONAIS_FILE = "devocionais.json"
+FAVORITOS_FILE = "favoritos.json"
+DIARIO_FILE = "diario.json"
 
-# --- BANCO DE DADOS ---
-def conectar_db():
-    return sqlite3.connect("database.db")
+def carregar_dados(filepath, default_data):
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return default_data
+    return default_data
 
+def salvar_dados(filepath, data):
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
-def criar_tabelas():
-    conn = conectar_db()
-    cursor = conn.cursor()
+# Inicialização de Dados
+usuarios_padrao = {
+    "admin@vidanapalavra.com": {"senha": "admin", "role": "admin"}
+}
+usuarios = carregar_dados(USUARIOS_FILE, usuarios_padrao)
+if "admin@vidanapalavra.com" not in usuarios:
+    usuarios["admin@vidanapalavra.com"] = {"senha": "admin", "role": "admin"}
+    salvar_dados(USUARIOS_FILE, usuarios)
 
-    # Tabela de Usuários
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            senha TEXT NOT NULL,
-            tipo TEXT NOT NULL
-        )
-    """)
+devocionais_padrao = {
+    "09/09/2026": {
+        "referencia": "Filipenses 4:13",
+        "versiculo": '"Tudo posso naquele que me fortalece."',
+        "titulo_reflexao": "Fortalecimento Espiritual",
+        "reflexao": "Sua força não vem de suas próprias capacidades, mas da graça renovadora de Cristo em você."
+    }
+}
+devocionais = carregar_dados(DEVOCIONAIS_FILE, devocionais_padrao)
+favoritos = carregar_dados(FAVORITOS_FILE, {})
+diario = carregar_dados(DIARIO_FILE, {})
 
-    # Tabela de Devocionais Personalizados
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS devocionais (
-            data TEXT PRIMARY KEY,
-            referencia TEXT,
-            versiculo TEXT,
-            fortalecimento TEXT
-        )
-    """)
-
-    # Tabela de Reflexões
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS reflexoes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            usuario_email TEXT,
-            data TEXT,
-            reflexao TEXT,
-            UNIQUE(usuario_email, data)
-        )
-    """)
-
-    # Tabela de Favoritos
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS favoritos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            usuario_email TEXT,
-            data TEXT,
-            UNIQUE(usuario_email, data)
-        )
-    """)
-
-    # Garante a existência do Administrador Padrão
-    cursor.execute(
-        "SELECT * FROM usuarios WHERE email = ?", ("admin@vidanapalavra.com",)
-    )
-    if not cursor.fetchone():
-        senha_hash = hashlib.sha256("123456".encode()).hexdigest()
-        cursor.execute(
-            "INSERT INTO usuarios (email, senha, tipo) VALUES (?, ?, ?)",
-            ("admin@vidanapalavra.com", senha_hash, "admin"),
-        )
-
-    conn.commit()
-    conn.close()
-
-
-criar_tabelas()
-
-
-# --- BASE DE DEVOCIONAIS AUTOMÁTICOS PARA TODO O ANO ---
-def obter_devocional_padrao(data_obj):
-    dia_do_ano = data_obj.timetuple().tm_yday
-    base_devocionais = [
-        (
-            "Salmos 23:1",
-            "O Senhor é o meu pastor; nada me faltará.",
-            "Deus cuida de cada detalhe da sua vida. Descanse no cuidado e na provisão do Pai neste dia.",
-        ),
-        (
-            "Filipenses 4:13",
-            "Tudo posso naquele que me fortalece.",
-            "Sua força não vem de suas próprias capacidades, mas da graça renovadora de Cristo em você.",
-        ),
-        (
-            "Isaías 41:10",
-            (
-                "Não temas, porque eu sou contigo; não te assombres, porque eu"
-                " sou o teu Deus; eu te fortaleço, e te ajudo, e te sustento"
-                " com a destra da minha justiça."
-            ),
-            "A presença de Deus afasta todo o medo. Ele segura a sua mão em cada desafio hoje.",
-        ),
-        (
-            "Provérbios 3:5-6",
-            (
-                "Confie no Senhor de todo o seu coração e não se apoie em seu"
-                " próprio entendimento; reconheça o Senhor em todos os seus"
-                " caminhos, e ele endireitará as suas veredas."
-            ),
-            "Entregue o controle das suas decisões ao Senhor. Ele guiará os seus passos com sabedoria.",
-        ),
-        (
-            "Jeremias 29:11",
-            (
-                "Porque sou eu que conheço os planos que tenho para vocês’,"
-                " diz o Senhor, ‘planos de fazê-los prosperar e não de causar"
-                " dano, planos de dar a vocês esperança e um futuro’."
-            ),
-            "Deus já desenhou o seu futuro com paz e esperança. Permaneça firme na promessa Dele.",
-        ),
-        (
-            "Mateus 11:28",
-            (
-                "Venham a mim, todos vocês que estão cansados e sobrecarregados,"
-                " e eu lhes darei descanso."
-            ),
-            "Deposite suas preocupações nos pés de Jesus hoje. Nele você encontra a verdadeira paz.",
-        ),
-        (
-            "Romanos 8:31",
-            "Se Deus é por nós, quem será contra nós?",
-            "Nenhuma adversidade pode prevalecer contra o propósito de Deus para a sua vida.",
-        ),
-        (
-            "Salmos 46:1",
-            (
-                "Deus é o nosso refúgio e a nossa força, socorro bem presente"
-                " na angústia."
-            ),
-            "Em momentos de tempestade, corra para o abraço do Pai. Ele é a sua fortaleza inabalável.",
-        ),
-        (
-            "João 14:27",
-            (
-                "Deixo-lhes a paz; a minha paz lhes dou. Não a dou como o mundo"
-                " a dá. Não se perturbe o seu coração, nem tenham medo."
-            ),
-            "A paz de Cristo excede todo o entendimento humano. Guarde seu coração nessa certeza.",
-        ),
-        (
-            "Josué 1:9",
-            (
-                "Não fui eu que lhe ordenei? Seja forte e corajoso! Não fique"
-                " desanimado nem apavore, porque o Senhor, o seu Deus, estará"
-                " com você por onde você andar."
-            ),
-            "Avance com coragem. O Senhor dos Exércitos caminha à sua frente abrindo os caminhos.",
-        ),
-    ]
-
-    indice = (dia_do_ano - 1) % len(base_devocionais)
-    return base_devocionais[indice]
-
-
-# --- FUNÇÕES DE SEGURANÇA E AUXILIARES ---
-def normalizar_email(email):
-    return email.strip().lower() if email else ""
-
-
-def hash_senha(senha):
-    return hashlib.sha256(senha.encode()).hexdigest()
-
-
-def verificar_login(email, senha):
-    email_limpo = normalizar_email(email)
-    conn = conectar_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT tipo FROM usuarios WHERE email = ? AND senha = ?",
-        (email_limpo, hash_senha(senha)),
-    )
-    user = cursor.fetchone()
-    conn.close()
-    return user[0] if user else None
-
-
-def criar_usuario(email, senha, tipo="usuario"):
-    email_limpo = normalizar_email(email)
-    conn = conectar_db()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(
-            "INSERT INTO usuarios (email, senha, tipo) VALUES (?, ?, ?)",
-            (email_limpo, hash_senha(senha), tipo),
-        )
-        conn.commit()
-        conn.close()
-        return True, f"Usuário {email_limpo} cadastrado com sucesso!"
-    except sqlite3.IntegrityError:
-        conn.close()
-        return False, "Este e-mail já está cadastrado no sistema."
-
-
-# --- CONTROLE DE SESSÃO E SEGURANÇA ---
+# Gerenciamento da Sessão
 if "logado" not in st.session_state:
-    st.session_state.logado = False
-if "usuario_email" not in st.session_state:
-    st.session_state.usuario_email = ""
-if "tipo_usuario" not in st.session_state:
-    st.session_state.tipo_usuario = ""
+    st.session_state["logado"] = False
+if "usuario_atual" not in st.session_state:
+    st.session_state["usuario_atual"] = None
 
-
-# --- TELA 0: LOGIN (BLOQUEIO PARA NÃO AUTORIZADOS) ---
-if not st.session_state.logado:
+# TELA DE LOGIN
+if not st.session_state["logado"]:
     st.title("📖 Vida Na Palavra")
-    st.subheader("🔒 Acesso Restrito aos Assinantes")
-    st.write(
-        "Por favor, insira suas credenciais cadastradas para acessar o"
-        " aplicativo."
-    )
-
+    st.subheader("Acesse seu Devocional Diário")
+    
     with st.form("form_login"):
-        email_input = st.text_input("E-mail:")
-        senha_input = st.text_input("Senha:", type="password")
-        btn_login = st.form_submit_button("Entrar no Aplicativo")
-
-        if btn_login:
-            tipo = verificar_login(email_input, senha_input)
-            if tipo:
-                st.session_state.logado = True
-                st.session_state.usuario_email = normalizar_email(email_input)
-                st.session_state.tipo_usuario = tipo
+        email = st.text_input("E-mail:").strip().lower()
+        senha = st.text_input("Senha:", type="password")
+        submit = st.form_submit_button("Entrar")
+        
+        if submit:
+            if email in usuarios and usuarios[email]["senha"] == senha:
+                st.session_state["logado"] = True
+                st.session_state["usuario_atual"] = email
+                st.session_state["role"] = usuarios[email].get("role", "user")
+                st.success("Login realizado com sucesso!")
                 st.rerun()
             else:
-                st.error(
-                    "Acesso negado. E-mail ou senha incorretos. Verifique se o"
-                    " seu cadastro foi liberado."
-                )
+                st.error("E-mail ou senha incorretos.")
 
-# --- APLICAÇÃO PRINCIPAL (EXCLUSIVA PARA LOGADOS) ---
+# ÁREA LOGADA
 else:
-    # Menu Lateral
+    usuario_email = st.session_state["usuario_atual"]
+    role = st.session_state.get("role", "user")
+    
+    # Barra Lateral
     st.sidebar.title("📖 Vida Na Palavra")
-    st.sidebar.write(f"👤 **{st.session_state.tipo_usuario.capitalize()}**")
-    st.sidebar.caption(f"🔑 {st.session_state.usuario_email}")
+    st.sidebar.write(f"👤 **{role.capitalize()}**")
+    st.sidebar.caption(usuario_email)
     st.sidebar.divider()
-
-    opcoes_menu = ["Devocional Diário", "Meu Diário", "Favoritos"]
-    if st.session_state.tipo_usuario == "admin":
-        opcoes_menu.append("Painel Admin")
-
-    menu = st.sidebar.radio("Navegação", opcoes_menu)
-
+    
+    opcoes_nav = ["Devocional Diário", "Meu Diário", "Favoritos"]
+    if role == "admin":
+        opcoes_nav.append("Painel Admin")
+        
+    pagina = st.sidebar.radio("Navegação", opcoes_nav)
+    
     if st.sidebar.button("🚪 Sair (Logout)"):
-        st.session_state.logado = False
-        st.session_state.usuario_email = ""
-        st.session_state.tipo_usuario = ""
+        st.session_state["logado"] = False
+        st.session_state["usuario_atual"] = None
         st.rerun()
 
-    # --- TELA 1: DEVOCIONAL DIÁRIO ---
-    if menu == "Devocional Diário":
+    # 1. DEVOCIONAL DIÁRIO
+    if pagina == "Devocional Diário":
         st.title("📖 Devocional Diário")
-
-        # Data em Formato Brasileiro (DD/MM/AAAA)
-        data_selecionada = st.date_input(
-            "Selecione a Data do Devocional:",
-            datetime.today(),
-            format="DD/MM/YYYY",
-        )
-        data_str = data_selecionada.strftime("%Y-%m-%d")
-        data_ptbr = data_selecionada.strftime("%d/%m/%Y")
-
-        conn = conectar_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT referencia, versiculo, fortalecimento FROM devocionais"
-            " WHERE data = ?",
-            (data_str,),
-        )
-        devocional_db = cursor.fetchone()
-
-        if devocional_db:
-            ref, ver, fort = devocional_db
+        
+        data_sel = st.date_input("Selecione a Data do Devocional:", datetime.date.today())
+        data_str = data_sel.strftime("%d/%m/%Y")
+        
+        st.subheader(f"📅 Devocional para {data_str}")
+        
+        dev = devocionais.get(data_str, {
+            "referencia": "Salmos 119:105",
+            "versiculo": '"Lâmpada para os meus pés é tua palavra e luz, para o meu caminho."',
+            "titulo_reflexao": "Luz na Caminhada",
+            "reflexao": "Busque a palavra diária para guiar cada uma das suas decisões hoje."
+        })
+        
+        st.info(f"📖 **{dev['referencia']}**\n\n{dev['versiculo']}")
+        st.success(f"💡 **{dev['titulo_reflexao']}:**\n\n{dev['reflexao']}")
+        
+        # Botão de Favoritar
+        fav_user = favoritos.get(usuario_email, [])
+        ja_favoritou = any(item.get("data") == data_str for item in fav_user)
+        
+        if ja_favoritou:
+            st.warning("⭐ Este devocional já está nos seus Favoritos!")
         else:
-            ref, ver, fort = obter_devocional_padrao(data_selecionada)
-
-        st.subheader(f"📅 Devocional para {data_ptbr}")
-        st.info(f"📖 **{ref}**\n\n\"{ver}\"")
-        st.success(f"💡 **Fortalecimento Espiritual:**\n\n{fort}")
+            if st.button("⭐ Favoritar este Devocional"):
+                fav_user.append({
+                    "data": data_str,
+                    "referencia": dev["referencia"],
+                    "versiculo": dev["versiculo"],
+                    "reflexao": dev["reflexao"]
+                })
+                favoritos[usuario_email] = fav_user
+                salvar_dados(FAVORITOS_FILE, favoritos)
+                st.success("Devocional adicionado aos Favoritos!")
+                st.rerun()
 
         st.divider()
         st.subheader("✍️ Sua Reflexão Pessoal")
+        
+        chave_diario = f"{usuario_email}_{data_str}"
+        texto_existente = diario.get(chave_diario, "")
+        
+        nova_reflexao = st.text_area("O que Deus falou ao seu coração hoje?", value=texto_existente, height=120)
+        if st.button("Salvar Reflexão"):
+            diario[chave_diario] = nova_reflexao
+            salvar_dados(DIARIO_FILE, diario)
+            st.success("Reflexão salva com sucesso no seu Diário!")
 
-        cursor.execute(
-            "SELECT reflexao FROM reflexoes WHERE usuario_email = ? AND data ="
-            " ?",
-            (st.session_state.usuario_email, data_str),
-        )
-        reflexao_salva = cursor.fetchone()
-        texto_inicial = reflexao_salva[0] if reflexao_salva else ""
-
-        nova_reflexao = st.text_area(
-            "O que Deus falou ao seu coração hoje?",
-            value=texto_inicial,
-            height=150,
-        )
-
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            if st.button("💾 Salvar Reflexão"):
-                cursor.execute(
-                    """
-                    INSERT INTO reflexoes (usuario_email, data, reflexao)
-                    VALUES (?, ?, ?)
-                    ON CONFLICT(usuario_email, data) DO UPDATE SET reflexao = excluded.reflexao
-                """,
-                    (st.session_state.usuario_email, data_str, nova_reflexao),
-                )
-                conn.commit()
-                st.success("Reflexão salva com sucesso!")
-
-        # Botão de Impressão / PDF
-        components.html(
-            """
-            <button onclick="window.parent.print()" style="
-                background-color: #2E7D32;
-                color: white;
-                padding: 10px 20px;
-                border: none;
-                border-radius: 5px;
-                cursor: pointer;
-                font-weight: bold;
-                font-size: 14px;
-                margin-top: 10px;">
-                🖨️ Imprimir / Salvar em PDF
-            </button>
-            """,
-            height=60,
-        )
-        conn.close()
-
-    # --- TELA 2: MEU DIÁRIO ---
-    elif menu == "Meu Diário":
-        st.title("📔 Meu Diário Espiritual")
-
-        conn = conectar_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT data, reflexao FROM reflexoes 
-            WHERE usuario_email = ? AND reflexao != '' 
-            ORDER BY data DESC
-        """,
-            (st.session_state.usuario_email,),
-        )
-        historico = cursor.fetchall()
-        conn.close()
-
-        if historico:
-            for item in historico:
-                data_formatada = datetime.strptime(
-                    item[0], "%Y-%m-%d"
-                ).strftime("%d/%m/%Y")
-                with st.expander(f"📅 Registro de {data_formatada}"):
-                    st.write(item[1])
+    # 2. MEU DIÁRIO
+    elif pagina == "Meu Diário":
+        st.title("📓 Meu Diário Espiritual")
+        registros = {k.split("_")[1]: v for k, v in diario.items() if k.startswith(f"{usuario_email}_") and v.strip()}
+        
+        if registros:
+            for d, texto in sorted(registros.items(), reverse=True):
+                with st.expander(f"📅 Registro de {d}"):
+                    st.write(texto)
         else:
-            st.info("Você ainda não salvou nenhuma reflexão.")
+            st.info("Você ainda não salvou nenhuma reflexão no seu diário.")
 
-    # --- TELA 3: FAVORITOS ---
-    elif menu == "Favoritos":
+    # 3. FAVORITOS
+    elif pagina == "Favoritos":
         st.title("⭐ Meus Devocionais Favoritos")
-        st.info("Em breve você poderá consultar seus trechos favoritados aqui!")
+        fav_user = favoritos.get(usuario_email, [])
+        
+        if fav_user:
+            for idx, fav in enumerate(fav_user):
+                with st.expander(f"📅 {fav['data']} - {fav['referencia']}"):
+                    st.write(f"**Versículo:** {fav['versiculo']}")
+                    st.write(f"**Reflexão:** {fav['reflexao']}")
+                    if st.button(f"Remover dos Favoritos", key=f"del_{idx}"):
+                        fav_user.pop(idx)
+                        favoritos[usuario_email] = fav_user
+                        salvar_dados(FAVORITOS_FILE, favoritos)
+                        st.success("Removido dos favoritos!")
+                        st.rerun()
+        else:
+            st.info("Você ainda não favoritou nenhum devocional.")
 
-    # --- TELA 4: PAINEL ADMIN ---
-    elif menu == "Painel Admin":
+    # 4. PAINEL ADMIN
+    elif pagina == "Painel Admin" and role == "admin":
         st.title("⚙️ Painel do Administrador")
-
-        # Cadastro de Usuários
+        
         st.subheader("👥 Liberar Acesso a Novo Cliente")
-        with st.form("form_novo_usuario", clear_on_submit=True):
-            novo_email = st.text_input("E-mail do comprador:")
-            nova_senha = st.text_input("Senha provisória:", type="password")
-            btn_cadastrar = st.form_submit_button("Liberar Acesso")
-
-            if btn_cadastrar:
-                if novo_email and nova_senha:
-                    sucesso, msg = criar_usuario(
-                        novo_email, nova_senha, "usuario"
-                    )
-                    if sucesso:
-                        st.success(msg)
-                    else:
-                        st.warning(msg)
+        with st.form("form_novo_cliente"):
+            novo_email = st.text_input("E-mail do comprador:").strip().lower()
+            nova_senha = st.text_input("Senha provisória (padrão: 123456):", value="123456")
+            submit_cliente = st.form_submit_button("Liberar Acesso")
+            
+            if submit_cliente:
+                if novo_email:
+                    usuarios[novo_email] = {"senha": nova_senha, "role": "user"}
+                    salvar_dados(USUARIOS_FILE, usuarios)
+                    st.success(f"Acesso liberado permanentemente para {novo_email}!")
                 else:
-                    st.error("Preencha todos os campos!")
-
+                    st.error("Informe um e-mail válido.")
+                    
         st.divider()
-
-        # Cadastro Personalizado de Devocionais
         st.subheader("📖 Personalizar Devocional Específico")
-        data_admin = st.date_input(
-            "Selecione a Data:", datetime.today(), format="DD/MM/YYYY"
-        )
-        data_admin_str = data_admin.strftime("%Y-%m-%d")
-
-        conn = conectar_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT referencia, versiculo, fortalecimento FROM devocionais"
-            " WHERE data = ?",
-            (data_admin_str,),
-        )
-        existente = cursor.fetchone()
-
-        ref_val = existente[0] if existente else ""
-        ver_val = existente[1] if existente else ""
-        fort_val = existente[2] if existente else ""
-
         with st.form("form_devocional"):
-            ref_input = st.text_input(
-                "Referência Bíblica (ex: Salmos 23:1):", value=ref_val
-            )
-            ver_input = st.text_area(
-                "Texto do Versículo:", value=ver_val, height=100
-            )
-            fort_input = st.text_area(
-                "Mensagem de Fortalecimento:", value=fort_val, height=100
-            )
-            btn_salvar_dev = st.form_submit_button(
-                "Salvar Devocional Personalizado"
-            )
-
-            if btn_salvar_dev:
-                cursor.execute(
-                    """
-                    INSERT INTO devocionais (data, referencia, versiculo, fortalecimento)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT(data) DO UPDATE SET
-                        referencia = excluded.referencia,
-                        versiculo = excluded.versiculo,
-                        fortalecimento = excluded.fortalecimento
-                """,
-                    (data_admin_str, ref_input, ver_input, fort_input),
-                )
-                conn.commit()
-                st.success("Devocional personalizado salvo com sucesso!")
-        conn.close()
-
-    else:
-        st.warning("Selecione uma opção no menu lateral.")
+            data_dev = st.date_input("Selecione a Data:", datetime.date.today())
+            ref_dev = st.text_input("Referência Bíblica (ex: Salmos 23:1):")
+            ver_dev = st.text_area("Texto do Versículo:")
+            tit_dev = st.text_input("Título da Reflexão:")
+            refle_dev = st.text_area("Texto da Reflexão:")
+            submit_dev = st.form_submit_button("Salvar Devocional")
+            
+            if submit_dev:
+                d_str = data_dev.strftime("%d/%m/%Y")
+                devocionais[d_str] = {
+                    "referencia": ref_dev,
+                    "versiculo": ver_dev,
+                    "titulo_reflexao": tit_dev,
+                    "reflexao": refle_dev
+                }
+                salvar_dados(DEVOCIONAIS_FILE, devocionais)
+                st.success(f"Devocional do dia {d_str} atualizado com sucesso!")
