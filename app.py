@@ -6,6 +6,16 @@ import os
 # Configuração da Página
 st.set_page_config(page_title="Vida Na Palavra", page_icon="📖", layout="wide")
 
+# Ocultar Menu Superior, Cabeçalho e Rodapé do Streamlit
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            header {visibility: hidden;}
+            footer {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
 # Arquivos de Armazenamento Persistente
 USUARIOS_FILE = "usuarios.json"
 DEVOCIONAIS_FILE = "devocionais.json"
