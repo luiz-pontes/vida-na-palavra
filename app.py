@@ -6,12 +6,21 @@ import os
 # Configuração da Página
 st.set_page_config(page_title="Vida Na Palavra", page_icon="📖", layout="wide")
 
-# Ocultar Menu Superior, Cabeçalho e Rodapé do Streamlit
+# CSS Avançado para remover Header, Footer, Toolbar e Badges Flutuantes do Streamlit
 hide_st_style = """
             <style>
-            #MainMenu {visibility: hidden;}
-            header {visibility: hidden;}
-            footer {visibility: hidden;}
+            #MainMenu {visibility: hidden !important;}
+            header {visibility: hidden !important;}
+            footer {visibility: hidden !important;}
+            [data-testid="stHeader"] {display: none !important;}
+            [data-testid="stToolbar"] {display: none !important;}
+            [data-testid="stDecoration"] {display: none !important;}
+            [data-testid="stStatusWidget"] {display: none !important;}
+            #stDecoration {display: none !important;}
+            .viewerBadge_container__1S-xd {display: none !important;}
+            .styles_viewerBadge__1y-o0 {display: none !important;}
+            div[class*="viewerBadge"] {display: none !important;}
+            div[class*="styles_viewerBadge"] {display: none !important;}
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
