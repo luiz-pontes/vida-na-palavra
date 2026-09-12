@@ -6,7 +6,7 @@ import os
 # Configuração da Página
 st.set_page_config(page_title="Vida Na Palavra", page_icon="📖", layout="wide")
 
-# CSS Avançado para remover Header, Footer, Toolbar e Badges Flutuantes do Streamlit
+# CSS Avançado para ocultar elementos nativos do Streamlit
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden !important;}
@@ -17,8 +17,6 @@ hide_st_style = """
             [data-testid="stDecoration"] {display: none !important;}
             [data-testid="stStatusWidget"] {display: none !important;}
             #stDecoration {display: none !important;}
-            .viewerBadge_container__1S-xd {display: none !important;}
-            .styles_viewerBadge__1y-o0 {display: none !important;}
             div[class*="viewerBadge"] {display: none !important;}
             div[class*="styles_viewerBadge"] {display: none !important;}
             </style>
@@ -53,23 +51,74 @@ if "admin@vidanapalavra.com" not in usuarios:
     usuarios["admin@vidanapalavra.com"] = {"senha": "admin", "role": "admin"}
     salvar_dados(USUARIOS_FILE, usuarios)
 
-devocionais_padrao = {
-    "09/09/2026": {
+devocionais_customizados = carregar_dados(DEVOCIONAIS_FILE, {})
+favoritos = carregar_dados(FAVORITOS_FILE, {})
+diario = carregar_dados(DIARIO_FILE, {})
+
+# Acervo Perpetuo de Devocionais Rotativos (Garante conteúdo para qualquer ano)
+ACERVO_ROTATIVO = [
+    {
+        "referencia": "Salmos 119:105",
+        "versiculo": '"Lâmpada para os meus pés é tua palavra e luz, para o meu caminho."',
+        "titulo_reflexao": "Luz na Caminhada",
+        "reflexao": "Busque a palavra diária para guiar cada uma das suas decisões hoje."
+    },
+    {
         "referencia": "Filipenses 4:13",
         "versiculo": '"Tudo posso naquele que me fortalece."',
         "titulo_reflexao": "Fortalecimento Espiritual",
         "reflexao": "Sua força não vem de suas próprias capacidades, mas da graça renovadora de Cristo em você."
+    },
+    {
+        "referencia": "Isaías 40:31",
+        "versiculo": '"Mas os que esperam no Senhor renovarão as suas forças e voarão alto como águias."',
+        "titulo_reflexao": "Renovo Diário",
+        "reflexao": "A paciência em Deus renova seu vigor para enfrentar qualquer desafio do dia."
+    },
+    {
+        "referencia": "Provérbios 3:5-6",
+        "versiculo": '"Confie no Senhor de todo o seu coração e não se apoie no seu próprio entendimento."',
+        "titulo_reflexao": "Confiança Total",
+        "reflexao": "Entregue o controle do seu dia a Deus; Ele endireitará todas as suas veredas."
+    },
+    {
+        "referencia": "Jeremias 29:11",
+        "versiculo": '"Porque sou eu que sei os planos que tenho para vocês, diz o Senhor."',
+        "titulo_reflexao": "Planos de Esperança",
+        "reflexao": "Mesmo em momentos de incerteza, os planos de Deus visam o seu bem e o seu futuro."
+    },
+    {
+        "referencia": "Romanos 8:28",
+        "versiculo": '"Sabemos que Deus agrupa todas as coisas para o bem daquele que o amam."',
+        "titulo_reflexao": "Propósito Maior",
+        "reflexao": "Cada detalhe de hoje está sendo trabalhado por Deus para o seu crescimento espiritual."
+    },
+    {
+        "referencia": "Mateus 6:33",
+        "versiculo": '"Buscai primeiro o Reino de Deus e a sua justiça, e todas estas coisas vos serão acrescentadas."',
+        "titulo_reflexao": "Prioridades Certas",
+        "reflexao": "Quando colocamos Deus em primeiro lugar, todas as outras necessidades se encaixam."
     }
-}
-devocionais = carregar_dados(DEVOCIONAIS_FILE, devocionais_padrao)
-favoritos = carregar_dados(FAVORITOS_FILE, {})
-diario = carregar_dados(DIARIO_FILE, {})
+]
+
+def obter_devocional_do_dia(data_obj):
+    data_str = data_obj.strftime("%d/%m/%Y")
+    # 1. Verifica se existe devocional cadastrado manualmente pelo Admin
+    if data_str in devocionais_customizados:
+        return devocionais_customizados[data_str]
+    
+    # 2. Se não houver, seleciona rotativamente com base no dia do ano (Perpétuo)
+    dia_do_ano = data_obj.timetuple().tm_yday
+    indice = dia_do_ano % len(ACERVO_ROTATIVO)
+    return ACERVO_ROTATIVO[indice]
 
 # Gerenciamento da Sessão
 if "logado" not in st.session_state:
     st.session_state["logado"] = False
 if "usuario_atual" not in st.session_state:
     st.session_state["usuario_atual"] = None
+if "data_selecionada" not in st.session_state:
+    st.session_state["data_selecionada"] = datetime.date.today()
 
 # TELA DE LOGIN
 if not st.session_state["logado"]:
@@ -117,17 +166,38 @@ else:
     if pagina == "Devocional Diário":
         st.title("📖 Devocional Diário")
         
-        data_sel = st.date_input("Selecione a Data do Devocional:", datetime.date.today())
-        data_str = data_sel.strftime("%d/%m/%Y")
+        # Seletor de Data com Botões de Navegação (Setas) e Formato BR
+        col_btn1, col_cal, col_btn2 = st.columns([1, 3, 1])
+        
+        with col_btn1:
+            st.write("") # Espaçamento vertical
+            if st.button("◀ Dia Anterior", use_container_width=True):
+                st.session_state["data_selecionada"] -= datetime.timedelta(days=1)
+                st.rerun()
+                
+        with col_cal:
+            nova_data = st.date_input(
+                "Selecione a Data do Devocional:",
+                value=st.session_state["data_selecionada"],
+                format="DD/MM/YYYY"
+            )
+            if nova_data != st.session_state["data_selecionada"]:
+                st.session_state["data_selecionada"] = nova_data
+                st.rerun()
+                
+        with col_btn2:
+            st.write("") # Espaçamento vertical
+            if st.button("Próximo Dia ▶", use_container_width=True):
+                st.session_state["data_selecionada"] += datetime.timedelta(days=1)
+                st.rerun()
+
+        data_atual = st.session_state["data_selecionada"]
+        data_str = data_atual.strftime("%d/%m/%Y")
         
         st.subheader(f"📅 Devocional para {data_str}")
         
-        dev = devocionais.get(data_str, {
-            "referencia": "Salmos 119:105",
-            "versiculo": '"Lâmpada para os meus pés é tua palavra e luz, para o meu caminho."',
-            "titulo_reflexao": "Luz na Caminhada",
-            "reflexao": "Busque a palavra diária para guiar cada uma das suas decisões hoje."
-        })
+        # Obtém devocional dinâmico ou customizado
+        dev = obter_devocional_do_dia(data_atual)
         
         st.info(f"📖 **{dev['referencia']}**\n\n{dev['versiculo']}")
         st.success(f"💡 **{dev['titulo_reflexao']}:**\n\n{dev['reflexao']}")
@@ -215,20 +285,20 @@ else:
         st.divider()
         st.subheader("📖 Personalizar Devocional Específico")
         with st.form("form_devocional"):
-            data_dev = st.date_input("Selecione a Data:", datetime.date.today())
+            data_dev = st.date_input("Selecione a Data:", datetime.date.today(), format="DD/MM/YYYY")
             ref_dev = st.text_input("Referência Bíblica (ex: Salmos 23:1):")
             ver_dev = st.text_area("Texto do Versículo:")
             tit_dev = st.text_input("Título da Reflexão:")
             refle_dev = st.text_area("Texto da Reflexão:")
-            submit_dev = st.form_submit_button("Salvar Devocional")
+            submit_dev = st.form_submit_button("Salvar Devocional Especial")
             
             if submit_dev:
                 d_str = data_dev.strftime("%d/%m/%Y")
-                devocionais[d_str] = {
+                devocionais_customizados[d_str] = {
                     "referencia": ref_dev,
                     "versiculo": ver_dev,
                     "titulo_reflexao": tit_dev,
                     "reflexao": refle_dev
                 }
-                salvar_dados(DEVOCIONAIS_FILE, devocionais)
+                salvar_dados(DEVOCIONAIS_FILE, devocionais_customizados)
                 st.success(f"Devocional do dia {d_str} atualizado com sucesso!")
