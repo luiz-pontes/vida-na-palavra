@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import os
 from datetime import datetime, timedelta
+from supabase import create_client, Client
 
 # Configuração da página
 st.set_page_config(
@@ -20,7 +21,21 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------------
-# BASE DE DADOS FIXA E PERMANENTE DE USUÁRIOS
+# CONEXÃO SUPABASE (NUVEM)
+# -------------------------------------------------------------------
+@st.cache_resource
+def init_supabase():
+    try:
+        url = st.secrets["SUPABASE_URL"]
+        key = st.secrets["SUPABASE_KEY"]
+        return create_client(url, key)
+    except Exception:
+        return None
+
+supabase = init_supabase()
+
+# -------------------------------------------------------------------
+# BASE DE DADOS FIXA (FAILSAFE PARA FAMÍLIA E AMIGOS)
 # -------------------------------------------------------------------
 usuarios_padrao = {
     "admin@vidanapalavra.com": {"senha": "admin", "role": "admin"},
@@ -40,25 +55,27 @@ usuarios_padrao = {
     "layanaperez@gmail.com": {"senha": "FRUTA", "role": "user"}
 }
 
-ARQUIVO_USUARIOS = "usuarios.json"
-
-def carregar_usuarios():
-    if os.path.exists(ARQUIVO_USUARIOS):
+def autenticar_usuario(email_input, senha_input):
+    # 1. Tenta autenticar pelo Supabase (Vendas Automáticas)
+    if supabase:
         try:
-            with open(ARQUIVO_USUARIOS, "r", encoding="utf-8") as f:
-                dados = json.load(f)
-                dados.update(usuarios_padrao)
-                return dados
+            res = supabase.table("usuarios").select("*").eq("email", email_input).execute()
+            if res.data and len(res.data) > 0:
+                user_db = res.data[0]
+                if user_db.get("senha") == senha_input:
+                    return True, user_db.get("role", "user")
         except Exception:
-            return usuarios_padrao.copy()
-    return usuarios_padrao.copy()
+            pass
 
-def salvar_usuarios(usuarios):
-    with open(ARQUIVO_USUARIOS, "w", encoding="utf-8") as f:
-        json.dump(usuarios, f, ensure_ascii=False, indent=4)
+    # 2. Backup: Tenta autenticar pela lista local fixa
+    if email_input in usuarios_padrao:
+        if usuarios_padrao[email_input]["senha"] == senha_input:
+            return True, usuarios_padrao[email_input]["role"]
+
+    return False, None
 
 # -------------------------------------------------------------------
-# ACERVO ROTATIVO DINÂMICO DE DEVOCIONAIS
+# ACERVO ROTATIVO DEVOCIONAL
 # -------------------------------------------------------------------
 ACERVO_ROTATIVO = [
     {
@@ -94,12 +111,11 @@ ACERVO_ROTATIVO = [
 ]
 
 def obter_devocional_do_dia(data):
-    # Seleciona a mensagem com base no dia do ano para variar diariamente
     indice = data.timetuple().tm_yday % len(ACERVO_ROTATIVO)
     return ACERVO_ROTATIVO[indice]
 
 # -------------------------------------------------------------------
-# SISTEMA DE SESSÃO
+# GERENCIAMENTO DE SESSÃO
 # -------------------------------------------------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -127,11 +143,11 @@ if not st.session_state.logged_in:
         btn_entrar = st.form_submit_button("Entrar")
 
         if btn_entrar:
-            usuarios = carregar_usuarios()
-            if email in usuarios and usuarios[email]["senha"] == senha:
+            sucesso, role = autenticar_usuario(email, senha)
+            if sucesso:
                 st.session_state.logged_in = True
                 st.session_state.user_email = email
-                st.session_state.user_role = usuarios[email].get("role", "user")
+                st.session_state.user_role = role
                 st.rerun()
             else:
                 st.error("E-mail ou senha incorretos.")
@@ -177,7 +193,6 @@ else:
 
         st.divider()
 
-        # Busca o devocional variado da data selecionada
         devocional_hoje = obter_devocional_do_dia(st.session_state.data_selecionada)
 
         st.header(devocional_hoje["titulo"])
@@ -185,14 +200,10 @@ else:
         st.write(devocional_hoje["texto"])
 
         st.markdown("---")
-        
-        # BLANCO DE FORTALECIMENTO / EXPERIÊNCIA ESPIRITUAL
         st.subheader("💡 Fortalecimento Espiritual do Dia")
         st.info(devocional_hoje["fortalecimento"])
 
         st.markdown("---")
-
-        # CAIXA DE COMENTÁRIOS E REFLEXÃO DO USUÁRIO
         st.subheader("✍️ Minhas Anotações e Reflexão Pessoal")
         chave_comentario = f"{st.session_state.user_email}_{data_formatada}"
         
@@ -210,7 +221,6 @@ else:
 
         st.divider()
 
-        # FAVORITAR
         item_fav = f"{data_formatada} - {devocional_hoje['titulo']} ({devocional_hoje['versiculo']})"
         if item_fav in st.session_state.favoritos:
             st.info("⭐ Este devocional está salvo nos seus favoritos.")
@@ -232,7 +242,7 @@ else:
     # ABA 3: PAINEL ADMIN
     elif opcao == "Painel Admin" and st.session_state.user_role == "admin":
         st.title("⚙️ Painel do Administrador")
-        st.subheader("Cadastrar Novo Usuário Temporário")
+        st.subheader("Cadastrar Novo Usuário no Banco (Supabase)")
 
         with st.form("form_novo_user"):
             novo_email = st.text_input("E-mail do Usuário:").strip().lower()
@@ -242,9 +252,17 @@ else:
 
             if btn_cadastrar:
                 if novo_email and nova_senha:
-                    usuarios = carregar_usuarios()
-                    usuarios[novo_email] = {"senha": nova_senha, "role": role}
-                    salvar_usuarios(usuarios)
-                    st.success(f"Usuário {novo_email} cadastrado com sucesso!")
+                    if supabase:
+                        try:
+                            supabase.table("usuarios").insert({
+                                "email": novo_email,
+                                "senha": nova_senha,
+                                "role": role
+                            }).execute()
+                            st.success(f"Usuário {novo_email} cadastrado com sucesso no Supabase!")
+                        except Exception as e:
+                            st.error(f"Erro ao salvar no banco: {e}")
+                    else:
+                        st.error("Conexão com o Supabase não estabelecida.")
                 else:
                     st.warning("Preencha todos os campos.")
