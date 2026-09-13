@@ -10,17 +10,12 @@ st.set_page_config(
     layout="centered"
 )
 
-# CSS Customizado para visual limpo
+# CSS Customizado
 st.markdown("""
     <style>
-    .main {
-        background-color: #f8f9fa;
-    }
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        height: 3em;
-    }
+    .main { background-color: #f8f9fa; }
+    .stButton>button { width: 100%; border-radius: 8px; height: 3em; }
+    .stTextArea textarea { border-radius: 8px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -40,10 +35,11 @@ usuarios_padrao = {
     "contato.drartursoares@gmail.com": {"senha": "COLUNA", "role": "user"},
     "carlos.colares@hotmail.com": {"senha": "CANINDE", "role": "user"},
     "lidiapcolares@hotmail.com": {"senha": "FORTAL", "role": "user"},
-    "gorete.bbarros@gmail.com": {"senha": "NETO", "role": "user"}
+    "gorete.bbarros@gmail.com": {"senha": "NETO", "role": "user"},
+    "concinhabc@gmail.com": {"senha": "BOLO", "role": "user"},
+    "layanaperez@gmail.com": {"senha": "FRUTA", "role": "user"}
 }
 
-# Gerenciador do JSON local com fallback para a base padrão
 ARQUIVO_USUARIOS = "usuarios.json"
 
 def carregar_usuarios():
@@ -51,7 +47,6 @@ def carregar_usuarios():
         try:
             with open(ARQUIVO_USUARIOS, "r", encoding="utf-8") as f:
                 dados = json.load(f)
-                # Garante que os usuários fixos sempre fiquem preservados
                 dados.update(usuarios_padrao)
                 return dados
         except Exception:
@@ -62,11 +57,46 @@ def salvar_usuarios(usuarios):
     with open(ARQUIVO_USUARIOS, "w", encoding="utf-8") as f:
         json.dump(usuarios, f, ensure_ascii=False, indent=4)
 
-# ACERVO PERPÉTUO DE RESERVA (Garante que nunca fique em branco)
-ACERVO_RESERVA = {
-    "01/01": {"titulo": "Um Novo Começo em Deus", "versiculo": "Salmos 118:24", "texto": "Este é o dia que fez o Senhor; regozijemo-nos e alegremo-nos nele. Confie seus novos projetos nas mãos do Criador."},
-    "DEFAULT": {"titulo": "A Renovação Diária da Fé", "versiculo": "Lamentações 3:22-23", "texto": "As misericórdias do Senhor são a causa de não sermos consumidos; elas se renovam a cada manhã. Grande é a tua fidelidade."}
-}
+# -------------------------------------------------------------------
+# ACERVO ROTATIVO DINÂMICO DE DEVOCIONAIS
+# -------------------------------------------------------------------
+ACERVO_ROTATIVO = [
+    {
+        "titulo": "A Renovação Diária da Fé",
+        "versiculo": "Lamentações 3:22-23",
+        "texto": "As misericórdias do Senhor são a causa de não sermos consumidos; elas se renovam a cada manhã. Grande é a tua fidelidade.",
+        "fortalecimento": "Deus renova as suas forças a cada amanhecer. Não carregue o peso de ontem no dia de hoje."
+    },
+    {
+        "titulo": "O Senhor é o Meu Pastor",
+        "versiculo": "Salmos 23:1",
+        "texto": "O Senhor é o meu pastor; nada me faltará. Ele me faz repousar em verdes pastos e me guia a águas tranquilas.",
+        "fortalecimento": "Ainda que o cenário pareça incerto, a provisão e o cuidado de Deus são garantidos para a sua vida."
+    },
+    {
+        "titulo": "Coragem e Bom Ânimo",
+        "versiculo": "Josué 1:9",
+        "texto": "Não fui eu que lhe ordenei? Seja forte e corajoso! Não se apavore nem desanime, pois o Senhor, o seu Deus, estará com você por onde você andar.",
+        "fortalecimento": "A presença divina vai adiante dos seus passos. Avance com confiança!"
+    },
+    {
+        "titulo": "Paz Que Excede todo o Entendimento",
+        "versiculo": "Filipenses 4:6-7",
+        "texto": "Não andem ansiosos por coisa alguma, mas em tudo, pela oração e suplicação, com ação de graças, apresentem seus pedidos a Deus.",
+        "fortalecimento": "Entregue suas preocupações no altar através da oração e descanse no cuidado do Pai."
+    },
+    {
+        "titulo": "Luz Para o Meu Caminho",
+        "versiculo": "Salmos 119:105",
+        "texto": "Lâmpada para os meus pés é tua palavra e luz, para o meu caminho.",
+        "fortalecimento": "Quando a Palavra de Deus guia seus passos, você nunca caminhará na escuridão."
+    }
+]
+
+def obter_devocional_do_dia(data):
+    # Seleciona a mensagem com base no dia do ano para variar diariamente
+    indice = data.timetuple().tm_yday % len(ACERVO_ROTATIVO)
+    return ACERVO_ROTATIVO[indice]
 
 # -------------------------------------------------------------------
 # SISTEMA DE SESSÃO
@@ -81,6 +111,8 @@ if "data_selecionada" not in st.session_state:
     st.session_state.data_selecionada = datetime.now()
 if "favoritos" not in st.session_state:
     st.session_state.favoritos = []
+if "comentarios" not in st.session_state:
+    st.session_state.comentarios = {}
 
 # -------------------------------------------------------------------
 # TELA DE LOGIN
@@ -117,7 +149,6 @@ else:
 
     st.sidebar.divider()
     
-    # Navegação entre abas
     menu = ["Devocional Diário", "Meus Favoritos"]
     if st.session_state.user_role == "admin":
         menu.append("Painel Admin")
@@ -128,7 +159,6 @@ else:
     if opcao == "Devocional Diário":
         st.title("📖 Devocional Diário")
         
-        # Controles de Navegação de Data (PT-BR)
         col1, col2, col3 = st.columns([1, 2, 1])
         
         with col1:
@@ -147,17 +177,40 @@ else:
 
         st.divider()
 
-        # Busca conteúdo da data ou carrega do Acervo Perpétuo
-        chave_dia = st.session_state.data_selecionada.strftime("%d/%m")
-        devocional_hoje = ACERVO_RESERVA.get(chave_dia, ACERVO_RESERVA["DEFAULT"])
+        # Busca o devocional variado da data selecionada
+        devocional_hoje = obter_devocional_do_dia(st.session_state.data_selecionada)
 
         st.header(devocional_hoje["titulo"])
         st.subheader(f"📖 {devocional_hoje['versiculo']}")
         st.write(devocional_hoje["texto"])
 
+        st.markdown("---")
+        
+        # BLANCO DE FORTALECIMENTO / EXPERIÊNCIA ESPIRITUAL
+        st.subheader("💡 Fortalecimento Espiritual do Dia")
+        st.info(devocional_hoje["fortalecimento"])
+
+        st.markdown("---")
+
+        # CAIXA DE COMENTÁRIOS E REFLEXÃO DO USUÁRIO
+        st.subheader("✍️ Minhas Anotações e Reflexão Pessoal")
+        chave_comentario = f"{st.session_state.user_email}_{data_formatada}"
+        
+        comentario_salvo = st.session_state.comentarios.get(chave_comentario, "")
+        novo_comentario = st.text_area(
+            "Escreva o que Deus falou ao seu coração hoje:", 
+            value=comentario_salvo, 
+            height=120,
+            placeholder="Digite aqui sua oração, insight ou reflexão espiritual..."
+        )
+
+        if st.button("Salvar Anotação"):
+            st.session_state.comentarios[chave_comentario] = novo_comentario
+            st.success("Reflexão salva com sucesso!")
+
         st.divider()
 
-        # Botão Favoritar
+        # FAVORITAR
         item_fav = f"{data_formatada} - {devocional_hoje['titulo']} ({devocional_hoje['versiculo']})"
         if item_fav in st.session_state.favoritos:
             st.info("⭐ Este devocional está salvo nos seus favoritos.")
@@ -176,7 +229,7 @@ else:
             for idx, fav in enumerate(st.session_state.favoritos):
                 st.write(f"**{idx + 1}.** {fav}")
 
-    # ABA 3: PAINEL ADMIN (Apenas para Administradores)
+    # ABA 3: PAINEL ADMIN
     elif opcao == "Painel Admin" and st.session_state.user_role == "admin":
         st.title("⚙️ Painel do Administrador")
         st.subheader("Cadastrar Novo Usuário Temporário")
