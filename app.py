@@ -9,27 +9,30 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CONFIGURAÇÃO E CONEXÃO SUPABASE ---
-# O Streamlit busca as chaves cadastradas nos Secrets ou você pode colar diretamente abaixo
+# --- CONEXÃO SUPABASE ---
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "SUA_URL_SUPABASE_AQUI")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "SUA_CHAVE_SUPABASE_AQUI")
 
-@st.cache_resource
-def get_supabase_client() -> Client:
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
-
+supabase: Client = None
 try:
-    supabase = get_supabase_client()
-except Exception as e:
-    st.error("Erro ao conectar ao Supabase. Verifique suas credenciais de acesso.")
+    if "SUPABASE_URL" in st.secrets and "SUPABASE_KEY" in st.secrets:
+        supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+except Exception:
+    pass
 
-# --- INICIALIZAÇÃO DE SESSÃO LOCAL ---
+# --- ESTADO DA SESSÃO ---
 if "usuario_logado" not in st.session_state:
     st.session_state["usuario_logado"] = "flsp1986@hotmail.com"
 
+if "favoritos" not in st.session_state:
+    st.session_state["favoritos"] = []
+
+if "anotacoes" not in st.session_state:
+    st.session_state["anotacoes"] = {}
+
 user_email = st.session_state["usuario_logado"]
 
-# --- BARRA LATERAL (SIDEBAR) ---
+# --- BARRA LATERAL ---
 st.sidebar.title("📖 Vida Na Palavra")
 st.sidebar.text(f"Usuário: {user_email}")
 
@@ -49,12 +52,10 @@ menu = st.sidebar.radio(
 data_hoje = datetime.date.today().strftime("%d/%m/%Y")
 devocional_id = f"Devocional_{data_hoje}"
 
-
 # --- ROTA 1: DEVOCIONAL DIÁRIO ---
 if menu == "Devocional Diário":
     st.title("📖 Devocional Diário")
     
-    # Navegação de Datas
     col_anterior, col_data, col_proximo = st.columns([1, 2, 1])
     with col_anterior:
         st.button("⬅️ Dia Anterior")
@@ -69,18 +70,35 @@ if menu == "Devocional Diário":
     st.subheader("📖 Lamentações 3:22-23")
     st.write("As misericórdias do Senhor são a causa de não sermos consumidos; elas se renovam a cada manhã. Grande é a tua fidelidade.")
 
-    # CONSULTA FAVORITOS NO SUPABASE
-    res_fav = supabase.table("favoritos").select("*").eq("user_email", user_email).eq("devocional_id", devocional_id).execute()
-    e_favorito = len(res_fav.data) > 0
+    # TENTA BUSCAR FAVORITO NO SUPABASE (COM PROTEÇÃO)
+    e_favorito = devocional_id in st.session_state["favoritos"]
+    if supabase:
+        try:
+            res_fav = supabase.table("favoritos").select("*").eq("user_email", user_email).eq("devocional_id", devocional_id).execute()
+            if res_fav.data:
+                e_favorito = True
+        except Exception:
+            pass
     
     btn_fav_text = "⭐ Removido dos Favoritos" if e_favorito else "⭐ Adicionar aos Favoritos"
     if st.button(btn_fav_text):
         if e_favorito:
-            supabase.table("favoritos").delete().eq("user_email", user_email).eq("devocional_id", devocional_id).execute()
-            st.success("Removido dos favoritos no banco de dados!")
+            if devocional_id in st.session_state["favoritos"]:
+                st.session_state["favoritos"].remove(devocional_id)
+            if supabase:
+                try:
+                    supabase.table("favoritos").delete().eq("user_email", user_email).eq("devocional_id", devocional_id).execute()
+                except Exception:
+                    pass
+            st.success("Removido dos favoritos!")
         else:
-            supabase.table("favoritos").insert({"user_email": user_email, "devocional_id": devocional_id}).execute()
-            st.success("Guardado nos favoritos no Supabase!")
+            st.session_state["favoritos"].append(devocional_id)
+            if supabase:
+                try:
+                    supabase.table("favoritos").insert({"user_email": user_email, "devocional_id": devocional_id}).execute()
+                except Exception:
+                    pass
+            st.success("Adicionado aos favoritos!")
         st.rerun()
 
     st.markdown("---")
@@ -90,9 +108,15 @@ if menu == "Devocional Diário":
     st.markdown("---")
     st.subheader("📝 Minhas Anotações e Reflexão Pessoal")
     
-    # BUSCA ANOTAÇÃO EXISTENTE NO SUPABASE
-    res_nota = supabase.table("anotacoes").select("anotacao").eq("user_email", user_email).eq("devocional_id", devocional_id).execute()
-    nota_existente = res_nota.data[0]["anotacao"] if res_nota.data else ""
+    # BUSCA ANOTAÇÃO (COM PROTEÇÃO)
+    nota_existente = st.session_state["anotacoes"].get(devocional_id, "")
+    if supabase:
+        try:
+            res_nota = supabase.table("anotacoes").select("anotacao").eq("user_email", user_email).eq("devocional_id", devocional_id).execute()
+            if res_nota.data:
+                nota_existente = res_nota.data[0]["anotacao"]
+        except Exception:
+            pass
     
     texto_reflexao = st.text_area(
         "Escreva o que Deus falou ao seu coração hoje:",
@@ -101,16 +125,20 @@ if menu == "Devocional Diário":
         height=150
     )
     
-    if st.button("💾 Salvar Anotação no Supabase"):
+    if st.button("💾 Salvar Anotação"):
         if texto_reflexao.strip():
-            # Grava ou Atualiza no Supabase (Upsert)
-            dados_payload = {
-                "user_email": user_email,
-                "devocional_id": devocional_id,
-                "anotacao": texto_reflexao
-            }
-            supabase.table("anotacoes").upsert(dados_payload).execute()
-            st.success("Sua reflexão foi gravada com segurança no banco de dados!")
+            st.session_state["anotacoes"][devocional_id] = texto_reflexao
+            if supabase:
+                try:
+                    dados_payload = {
+                        "user_email": user_email,
+                        "devocional_id": devocional_id,
+                        "anotacao": texto_reflexao
+                    }
+                    supabase.table("anotacoes").upsert(dados_payload).execute()
+                except Exception:
+                    pass
+            st.success("Sua reflexão foi gravada com sucesso! Acesse 'Meus Favoritos' para visualizar ou imprimir.")
         else:
             st.warning("Escreva uma reflexão antes de salvar.")
 
@@ -121,29 +149,41 @@ elif menu == "Meus Favoritos":
     
     tab_fav, tab_notas = st.tabs(["📌 Devocionais Favoritos", "📝 Minhas Anotações e Reflexões"])
     
-    # --- ABA 1: FAVORITOS SALVOS NO SUPABASE ---
+    # --- ABA 1: FAVORITOS ---
     with tab_fav:
-        res_favs = supabase.table("favoritos").select("*").eq("user_email", user_email).execute()
-        if res_favs.data:
+        favs = list(st.session_state["favoritos"])
+        if supabase:
+            try:
+                res_favs = supabase.table("favoritos").select("*").eq("user_email", user_email).execute()
+                if res_favs.data:
+                    favs = [item['devocional_id'] for item in res_favs.data]
+            except Exception:
+                pass
+                
+        if favs:
             st.subheader("Seus Devocionais Guardados:")
-            for item in res_favs.data:
-                st.success(f"⭐ {item['devocional_id']} - Guardado em sua lista pessoal.")
+            for item in set(favs):
+                st.success(f"⭐ {item} - A Renovação Diária da Fé")
         else:
             st.info("Você não possui devocionais favoritados no momento.")
 
     # --- ABA 2: ANOTAÇÕES / REFLEXÕES PARA IMPRIMIR ---
     with tab_notas:
-        res_notas = supabase.table("anotacoes").select("*").eq("user_email", user_email).execute()
+        notas_dict = dict(st.session_state["anotacoes"])
+        if supabase:
+            try:
+                res_notas = supabase.table("anotacoes").select("*").eq("user_email", user_email).execute()
+                if res_notas.data:
+                    for item in res_notas.data:
+                        notas_dict[item.get("devocional_id", "Devocional")] = item.get("anotacao", "")
+            except Exception:
+                pass
         
-        if res_notas.data:
-            st.subheader("Histórico de Reflexões Salvas no Supabase:")
-            
+        if notas_dict and any(t.strip() for t in notas_dict.values()):
+            st.subheader("Histórico de Reflexões Salvas:")
             texto_para_download = "=== MINHAS REFLEXÕES - DEVOCIONAL VIDA NA PALAVRA ===\n\n"
             
-            for item in res_notas.data:
-                dev_id = item.get("devocional_id", "Devocional")
-                texto_item = item.get("anotacao", "")
-                
+            for dev_id, texto_item in notas_dict.items():
                 if texto_item.strip():
                     st.markdown(f"**Data / Registro:** `{dev_id}`")
                     st.info(texto_item)
