@@ -1,268 +1,147 @@
 import streamlit as st
-import json
-import os
-from datetime import datetime, timedelta
-from supabase import create_client, Client
+import datetime
 
-# Configuração da página
+# --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
     page_title="Vida Na Palavra",
     page_icon="📖",
-    layout="centered"
+    layout="wide"
 )
 
-# CSS Customizado
-st.markdown("""
-    <style>
-    .main { background-color: #f8f9fa; }
-    .stButton>button { width: 100%; border-radius: 8px; height: 3em; }
-    .stTextArea textarea { border-radius: 8px; }
-    </style>
-""", unsafe_allow_html=True)
-
-# -------------------------------------------------------------------
-# CONEXÃO SUPABASE (NUVEM)
-# -------------------------------------------------------------------
-@st.cache_resource
-def init_supabase():
-    try:
-        url = st.secrets["SUPABASE_URL"]
-        key = st.secrets["SUPABASE_KEY"]
-        return create_client(url, key)
-    except Exception:
-        return None
-
-supabase = init_supabase()
-
-# -------------------------------------------------------------------
-# BASE DE DADOS FIXA (FAILSAFE PARA FAMÍLIA E AMIGOS)
-# -------------------------------------------------------------------
-usuarios_padrao = {
-    "admin@vidanapalavra.com": {"senha": "admin", "role": "admin"},
-    "anabiabarros6@gmail.com": {"senha": "CRISTO", "role": "user"},
-    "hemmely01@gmail.com": {"senha": "MARIA", "role": "user"},
-    "cristine_barros@hotmail.com": {"senha": "AMOR", "role": "user"},
-    "flsp1986@hotmail.com": {"senha": "VET", "role": "admin"},
-    "juarezpontesneto@gmail.com": {"senha": "MESSI", "role": "user"},
-    "lulumaia06luana@gmail.com": {"senha": "EVANGELHO", "role": "user"},
-    "lima.beneditalima@gmail.com": {"senha": "IGREJA", "role": "user"},
-    "alcineide0172@gmail.com": {"senha": "DIACONISA", "role": "user"},
-    "contato.drartursoares@gmail.com": {"senha": "COLUNA", "role": "user"},
-    "carlos.colares@hotmail.com": {"senha": "CANINDE", "role": "user"},
-    "lidiapcolares@hotmail.com": {"senha": "FORTAL", "role": "user"},
-    "gorete.bbarros@gmail.com": {"senha": "NETO", "role": "user"},
-    "concinhabc@gmail.com": {"senha": "BOLO", "role": "user"},
-    "layanaperez@gmail.com": {"senha": "FRUTA", "role": "user"}
-}
-
-def autenticar_usuario(email_input, senha_input):
-    # 1. Tenta autenticar pelo Supabase (Vendas Automáticas)
-    if supabase:
-        try:
-            res = supabase.table("usuarios").select("*").eq("email", email_input).execute()
-            if res.data and len(res.data) > 0:
-                user_db = res.data[0]
-                if user_db.get("senha") == senha_input:
-                    return True, user_db.get("role", "user")
-        except Exception:
-            pass
-
-    # 2. Backup: Tenta autenticar pela lista local fixa
-    if email_input in usuarios_padrao:
-        if usuarios_padrao[email_input]["senha"] == senha_input:
-            return True, usuarios_padrao[email_input]["role"]
-
-    return False, None
-
-# -------------------------------------------------------------------
-# ACERVO ROTATIVO DEVOCIONAL
-# -------------------------------------------------------------------
-ACERVO_ROTATIVO = [
-    {
-        "titulo": "A Renovação Diária da Fé",
-        "versiculo": "Lamentações 3:22-23",
-        "texto": "As misericórdias do Senhor são a causa de não sermos consumidos; elas se renovam a cada manhã. Grande é a tua fidelidade.",
-        "fortalecimento": "Deus renova as suas forças a cada amanhecer. Não carregue o peso de ontem no dia de hoje."
-    },
-    {
-        "titulo": "O Senhor é o Meu Pastor",
-        "versiculo": "Salmos 23:1",
-        "texto": "O Senhor é o meu pastor; nada me faltará. Ele me faz repousar em verdes pastos e me guia a águas tranquilas.",
-        "fortalecimento": "Ainda que o cenário pareça incerto, a provisão e o cuidado de Deus são garantidos para a sua vida."
-    },
-    {
-        "titulo": "Coragem e Bom Ânimo",
-        "versiculo": "Josué 1:9",
-        "texto": "Não fui eu que lhe ordenei? Seja forte e corajoso! Não se apavore nem desanime, pois o Senhor, o seu Deus, estará com você por onde você andar.",
-        "fortalecimento": "A presença divina vai adiante dos seus passos. Avance com confiança!"
-    },
-    {
-        "titulo": "Paz Que Excede todo o Entendimento",
-        "versiculo": "Filipenses 4:6-7",
-        "texto": "Não andem ansiosos por coisa alguma, mas em tudo, pela oração e suplicação, com ação de graças, apresentem seus pedidos a Deus.",
-        "fortalecimento": "Entregue suas preocupações no altar através da oração e descanse no cuidado do Pai."
-    },
-    {
-        "titulo": "Luz Para o Meu Caminho",
-        "versiculo": "Salmos 119:105",
-        "texto": "Lâmpada para os meus pés é tua palavra e luz, para o meu caminho.",
-        "fortalecimento": "Quando a Palavra de Deus guia seus passos, você nunca caminhará na escuridão."
-    }
-]
-
-def obter_devocional_do_dia(data):
-    indice = data.timetuple().tm_yday % len(ACERVO_ROTATIVO)
-    return ACERVO_ROTATIVO[indice]
-
-# -------------------------------------------------------------------
-# GERENCIAMENTO DE SESSÃO
-# -------------------------------------------------------------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "user_email" not in st.session_state:
-    st.session_state.user_email = ""
-if "user_role" not in st.session_state:
-    st.session_state.user_role = "user"
-if "data_selecionada" not in st.session_state:
-    st.session_state.data_selecionada = datetime.now()
+# --- INICIALIZAÇÃO DO ESTADO DA SESSÃO ---
 if "favoritos" not in st.session_state:
-    st.session_state.favoritos = []
-if "comentarios" not in st.session_state:
-    st.session_state.comentarios = {}
+    st.session_state["favoritos"] = []
 
-# -------------------------------------------------------------------
-# TELA DE LOGIN
-# -------------------------------------------------------------------
-if not st.session_state.logged_in:
-    st.title("📖 Vida Na Palavra")
-    st.subheader("Acesse seu Devocional Diário")
+if "anotacoes" not in st.session_state:
+    st.session_state["anotacoes"] = {}
 
-    with st.form("form_login"):
-        email = st.text_input("E-mail:").strip().lower()
-        senha = st.text_input("Senha:", type="password").strip()
-        btn_entrar = st.form_submit_button("Entrar")
+if "usuario_logado" not in st.session_state:
+    st.session_state["usuario_logado"] = "flsp1986@hotmail.com"
 
-        if btn_entrar:
-            sucesso, role = autenticar_usuario(email, senha)
-            if sucesso:
-                st.session_state.logged_in = True
-                st.session_state.user_email = email
-                st.session_state.user_role = role
-                st.rerun()
-            else:
-                st.error("E-mail ou senha incorretos.")
+# --- BARRA LATERAL (SIDEBAR) ---
+st.sidebar.title("📖 Vida Na Palavra")
+st.sidebar.text(f"Usuário: {st.session_state['usuario_logado']}")
 
-else:
-    # -------------------------------------------------------------------
-    # ÁREA LOGADA
-    # -------------------------------------------------------------------
-    st.sidebar.title("📖 Vida Na Palavra")
-    st.sidebar.write(f"Usuário: **{st.session_state.user_email}**")
+if st.sidebar.button("Sair / Logout"):
+    st.session_state.clear()
+    st.rerun()
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("Navegação")
+
+# Menu de navegação por rádio
+menu = st.sidebar.radio(
+    "Seleção de Tela",
+    ["Devocional Diário", "Meus Favoritos", "Painel Admin"],
+    label_visibility="collapsed"
+)
+
+# DATA ATUAL DO DEVOCIONAL
+data_hoje = datetime.date.today().strftime("%d/%m/%Y")
+
+
+# --- ROTA 1: DEVOCIONAL DIÁRIO ---
+if menu == "Devocional Diário":
+    st.title("📖 Devocional Diário")
     
-    if st.sidebar.button("Sair / Logout"):
-        st.session_state.logged_in = False
+    # Navegação de Datas
+    col_anterior, col_data, col_proximo = st.columns([1, 2, 1])
+    with col_anterior:
+        st.button("⬅️ Dia Anterior")
+    with col_data:
+        st.markdown(f"<h3 style='text-align: center;'>{data_hoje}</h3>", unsafe_allow_html=True)
+    with col_proximo:
+        st.button("Próximo Dia ➡️")
+
+    st.markdown("---")
+    
+    # Conteúdo do Devocional
+    st.header("A Renovação Diária da Fé")
+    st.subheader("📖 Lamentações 3:22-23")
+    st.write("As misericórdias do Senhor são a causa de não sermos consumidos; elas se renovam a cada manhã. Grande é a tua fidelidade.")
+
+    # Controle de Favoritos
+    devocional_id = f"Devocional_{data_hoje}"
+    e_favorito = devocional_id in st.session_state["favoritos"]
+    
+    btn_fav_text = "⭐ Removido dos Favoritos" if e_favorito else "⭐ Adicionar aos Favoritos"
+    if st.button(btn_fav_text):
+        if e_favorito:
+            st.session_state["favoritos"].remove(devocional_id)
+            st.success("Removido dos favoritos!")
+        else:
+            st.session_state["favoritos"].append(devocional_id)
+            st.success("Adicionado aos favoritos!")
         st.rerun()
 
-    st.sidebar.divider()
+    st.markdown("---")
+    st.subheader("💡 Fortalecimento Espiritual do Dia")
+    st.info("Deus renova as suas forças a cada amanhecer. Não carregue o peso de ontem no dia de hoje.")
+
+    st.markdown("---")
+    st.subheader("📝 Minhas Anotações e Reflexão Pessoal")
     
-    menu = ["Devocional Diário", "Meus Favoritos"]
-    if st.session_state.user_role == "admin":
-        menu.append("Painel Admin")
+    # Recupera nota existente, se houver
+    nota_salva = st.session_state["anotacoes"].get(devocional_id, "")
     
-    opcao = st.sidebar.radio("Navegação", menu)
-
-    # ABA 1: DEVOCIONAL DIÁRIO
-    if opcao == "Devocional Diário":
-        st.title("📖 Devocional Diário")
-        
-        col1, col2, col3 = st.columns([1, 2, 1])
-        
-        with col1:
-            if st.button("⬅️ Dia Anterior"):
-                st.session_state.data_selecionada -= timedelta(days=1)
-                st.rerun()
-        
-        with col2:
-            data_formatada = st.session_state.data_selecionada.strftime("%d/%m/%Y")
-            st.markdown(f"<h3 style='text-align: center;'>{data_formatada}</h3>", unsafe_allow_html=True)
-        
-        with col3:
-            if st.button("Próximo Dia ➡️"):
-                st.session_state.data_selecionada += timedelta(days=1)
-                st.rerun()
-
-        st.divider()
-
-        devocional_hoje = obter_devocional_do_dia(st.session_state.data_selecionada)
-
-        st.header(devocional_hoje["titulo"])
-        st.subheader(f"📖 {devocional_hoje['versiculo']}")
-        st.write(devocional_hoje["texto"])
-
-        st.markdown("---")
-        st.subheader("💡 Fortalecimento Espiritual do Dia")
-        st.info(devocional_hoje["fortalecimento"])
-
-        st.markdown("---")
-        st.subheader("✍️ Minhas Anotações e Reflexão Pessoal")
-        chave_comentario = f"{st.session_state.user_email}_{data_formatada}"
-        
-        comentario_salvo = st.session_state.comentarios.get(chave_comentario, "")
-        novo_comentario = st.text_area(
-            "Escreva o que Deus falou ao seu coração hoje:", 
-            value=comentario_salvo, 
-            height=120,
-            placeholder="Digite aqui sua oração, insight ou reflexão espiritual..."
-        )
-
-        if st.button("Salvar Anotação"):
-            st.session_state.comentarios[chave_comentario] = novo_comentario
-            st.success("Reflexão salva com sucesso!")
-
-        st.divider()
-
-        item_fav = f"{data_formatada} - {devocional_hoje['titulo']} ({devocional_hoje['versiculo']})"
-        if item_fav in st.session_state.favoritos:
-            st.info("⭐ Este devocional está salvo nos seus favoritos.")
+    texto_reflexao = st.text_area(
+        "Escreva o que Deus falou ao seu coração hoje:",
+        value=nota_salva,
+        placeholder="Digite aqui sua oração, insight ou reflexão espiritual...",
+        height=150
+    )
+    
+    if st.button("💾 Salvar Anotação"):
+        if texto_reflexao.strip():
+            st.session_state["anotacoes"][devocional_id] = texto_reflexao
+            st.success("Anotação salva com sucesso! Acesse 'Meus Favoritos' no menu para visualizar ou imprimir.")
         else:
-            if st.button("⭐ Favoritar este Devocional"):
-                st.session_state.favoritos.append(item_fav)
-                st.success("Salvo nos favoritos!")
-                st.rerun()
+            st.warning("Escreva algo antes de salvar.")
 
-    # ABA 2: MEUS FAVORITOS
-    elif opcao == "Meus Favoritos":
-        st.title("⭐ Meus Favoritos")
-        if not st.session_state.favoritos:
-            st.info("Você ainda não salvou nenhum devocional nos favoritos.")
+
+# --- ROTA 2: MEUS FAVORITOS E REFLEXÕES (TELA DE IMPRESSÃO) ---
+elif menu == "Meus Favoritos":
+    st.title("⭐ Meus Favoritos e Minhas Reflexões")
+    
+    # Criação das duas abas organizadas na tela central
+    tab_fav, tab_notas = st.tabs(["📌 Devocionais Favoritos", "📝 Minhas Anotações e Reflexões"])
+    
+    # --- ABA 1: DEVOCIONAIS FAVORITOS ---
+    with tab_fav:
+        if st.session_state["favoritos"]:
+            st.subheader("Devocionais Marcados como Favoritos:")
+            for item in st.session_state["favoritos"]:
+                st.success(f"⭐ {item} - A Renovação Diária da Fé (Lamentações 3:22-23)")
         else:
-            for idx, fav in enumerate(st.session_state.favoritos):
-                st.write(f"**{idx + 1}.** {fav}")
+            st.info("Você ainda não favoritou nenhum devocional.")
 
-    # ABA 3: PAINEL ADMIN
-    elif opcao == "Painel Admin" and st.session_state.user_role == "admin":
-        st.title("⚙️ Painel do Administrador")
-        st.subheader("Cadastrar Novo Usuário no Banco (Supabase)")
+    # --- ABA 2: MINHAS ANOTAÇÕES E REFLEXÕES ---
+    with tab_notas:
+        if st.session_state["anotacoes"] and any(t.strip() for t in st.session_state["anotacoes"].values()):
+            st.subheader("Histórico de Reflexões Salvas:")
+            
+            texto_para_download = "=== MINHAS REFLEXÕES - DEVOCIONAL VIDA NA PALAVRA ===\n\n"
+            
+            # Percorre e exibe cada nota salva
+            for id_dev, texto in st.session_state["anotacoes"].items():
+                if texto.strip():
+                    st.markdown(f"**Data / Devocional:** `{id_dev}`")
+                    st.info(texto)
+                    texto_para_download += f"Devocional: {id_dev}\nReflexão: {texto}\n" + "-"*50 + "\n\n"
+            
+            st.markdown("---")
+            # Botão de Download para Impressão
+            st.download_button(
+                label="🖨️ Baixar / Imprimir Todas as Minhas Anotações (TXT)",
+                data=texto_para_download,
+                file_name="Minhas_Reflexoes_Vida_Na_Palavra.txt",
+                mime="text/plain"
+            )
+        else:
+            st.warning("Você ainda não salvou nenhuma anotação ou reflexão pessoal.")
 
-        with st.form("form_novo_user"):
-            novo_email = st.text_input("E-mail do Usuário:").strip().lower()
-            nova_senha = st.text_input("Senha de Acesso:").strip()
-            role = st.selectbox("Perfil:", ["user", "admin"])
-            btn_cadastrar = st.form_submit_button("Cadastrar Usuário")
 
-            if btn_cadastrar:
-                if novo_email and nova_senha:
-                    if supabase:
-                        try:
-                            supabase.table("usuarios").insert({
-                                "email": novo_email,
-                                "senha": nova_senha,
-                                "role": role
-                            }).execute()
-                            st.success(f"Usuário {novo_email} cadastrado com sucesso no Supabase!")
-                        except Exception as e:
-                            st.error(f"Erro ao salvar no banco: {e}")
-                    else:
-                        st.error("Conexão com o Supabase não estabelecida.")
-                else:
-                    st.warning("Preencha todos os campos.")
+# --- ROTA 3: PAINEL ADMIN ---
+elif menu == "Painel Admin":
+    st.title("⚙️ Painel de Administração")
+    st.write("Gerenciamento de conteúdos e usuários do aplicativo.")
