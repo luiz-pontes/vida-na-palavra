@@ -27,7 +27,6 @@ if "favoritos" not in st.session_state:
 if "anotacoes" not in st.session_state:
     st.session_state["anotacoes"] = {}
 
-# Controle dinâmico da data selecionada
 if "data_selecionada" not in st.session_state:
     st.session_state["data_selecionada"] = datetime.date.today()
 
@@ -54,7 +53,6 @@ menu = st.sidebar.radio(
 if menu == "Devocional Diário":
     st.title("📖 Devocional Diário")
     
-    # Navegação Dinâmica de Datas
     col_anterior, col_data, col_proximo = st.columns([1, 2, 1])
     
     with col_anterior:
@@ -63,7 +61,6 @@ if menu == "Devocional Diário":
             st.rerun()
             
     with col_data:
-        # Seletor interativo de data
         nova_data = st.date_input(
             "Data do Devocional",
             value=st.session_state["data_selecionada"],
@@ -126,7 +123,6 @@ if menu == "Devocional Diário":
     st.markdown("---")
     st.subheader("📝 Minhas Anotações e Reflexão Pessoal")
     
-    # CONSULTA ANOTAÇÃO POR DATA
     nota_existente = st.session_state["anotacoes"].get(devocional_id, "")
     if supabase:
         try:
@@ -162,7 +158,7 @@ if menu == "Devocional Diário":
             st.warning("Escreva uma reflexão antes de salvar.")
 
 
-# --- ROTA 2: MEUS FAVORITOS E REFLEXÕES ---
+# --- ROTA 2: MEUS FAVORITOS E REFLEXÕES (IMPRESSÃO ELEGANTE) ---
 elif menu == "Meus Favoritos":
     st.title("⭐ Meus Favoritos e Minhas Reflexões")
     
@@ -198,20 +194,101 @@ elif menu == "Meus Favoritos":
         
         if notas_dict and any(t.strip() for t in notas_dict.values()):
             st.subheader("Histórico de Reflexões Salvas:")
-            texto_para_download = "=== MINHAS REFLEXÕES - DEVOCIONAL VIDA NA PALAVRA ===\n\n"
+            
+            # MONTAGEM DO DOCUMENTO ELEGANTE (HTML/WORD PREPARADO PARA IMPRESSÃO)
+            html_impressao = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>Caderno de Reflexões - Vida Na Palavra</title>
+                <style>
+                    body {{
+                        font-family: 'Georgia', 'Times New Roman', serif;
+                        margin: 40px;
+                        color: #2c3e50;
+                        line-height: 1.6;
+                    }}
+                    .header {{
+                        text-align: center;
+                        border-bottom: 2px solid #2c3e50;
+                        padding-bottom: 15px;
+                        margin-bottom: 30px;
+                    }}
+                    .header h1 {{
+                        font-size: 24px;
+                        margin: 0;
+                        color: #1a252f;
+                    }}
+                    .header p {{
+                        font-size: 13px;
+                        color: #7f8c8d;
+                        margin-top: 5px;
+                    }}
+                    .card {{
+                        background: #fdfdfd;
+                        border-left: 4px solid #3498db;
+                        padding: 15px 20px;
+                        margin-bottom: 25px;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                        border-radius: 2px;
+                    }}
+                    .card-title {{
+                        font-weight: bold;
+                        font-size: 16px;
+                        color: #2980b9;
+                        margin-bottom: 8px;
+                    }}
+                    .card-body {{
+                        font-size: 15px;
+                        white-space: pre-wrap;
+                        color: #34495e;
+                    }}
+                    .footer {{
+                        margin-top: 40px;
+                        text-align: center;
+                        font-size: 12px;
+                        color: #bdc3c7;
+                        border-top: 1px solid #ecf0f1;
+                        padding-top: 10px;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>📖 Caderno de Anotações e Reflexões Pessoais</h1>
+                    <p>Aplicativo Vida Na Palavra | Usuário: {user_email}</p>
+                </div>
+            """
             
             for dev_id, texto_item in notas_dict.items():
                 if texto_item.strip():
                     st.markdown(f"**Data / Registro:** `{dev_id}`")
                     st.info(texto_item)
-                    texto_para_download += f"Registro: {dev_id}\nReflexão: {texto_item}\n" + "-"*50 + "\n\n"
+                    
+                    # Adiciona cada card elegante no HTML
+                    html_impressao += f"""
+                    <div class="card">
+                        <div class="card-title">📌 Registro: {dev_id.replace('_', ' ')}</div>
+                        <div class="card-body">{texto_item}</div>
+                    </div>
+                    """
+            
+            html_impressao += """
+                <div class="footer">
+                    <p>Vida Na Palavra - Fortalecimento Diário na Fé</p>
+                </div>
+            </body>
+            </html>
+            """
             
             st.markdown("---")
+            # BOTÃO PARA BAIXAR DOCUMENTO FORMATADO (ABRE PERFEITO NO NAVEGADOR OU WORD)
             st.download_button(
-                label="🖨️ Baixar / Imprimir Todas as Minhas Anotações (TXT)",
-                data=texto_para_download,
-                file_name=f"Reflexoes_Devocional_{user_email}.txt",
-                mime="text/plain"
+                label="📄 Baixar Documento Formatado para Impressão",
+                data=html_impressao,
+                file_name=f"Reflexoes_Elegantes_{user_email}.html",
+                mime="text/html"
             )
         else:
             st.warning("Nenhuma anotação foi encontrada na sua conta.")
