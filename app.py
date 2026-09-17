@@ -9,6 +9,28 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- BASE DE DADOS DOS DEVOCIONAIS (DINÂMICA POR DATA) ---
+DEVOCIONAIS_BD = {
+    "17/09/2026": {
+        "titulo": "A Renovação Diária da Fé",
+        "versiculo": "Lamentações 3:22-23",
+        "texto": "As misericórdias do Senhor são a causa de não sermos consumidos; elas se renovam a cada manhã. Grande é a tua fidelidade.",
+        "fortalecimento": "Deus renova as suas forças a cada amanhecer. Não carregue o peso de ontem no dia de hoje."
+    },
+    "18/09/2026": {
+        "titulo": "O Poder da Oração Persistente",
+        "versiculo": "Filipenses 4:6-7",
+        "texto": "Não andeis ansiosos por coisa alguma; antes, as vossas petições sejam em tudo conhecidas diante de Deus, pela oração e súplicas, com ação de graças.",
+        "fortalecimento": "A paz de Deus, que excede todo o entendimento, guardará o seu coração no dia de hoje."
+    },
+    "16/09/2026": {
+        "titulo": "A Força na Fraqueza",
+        "versiculo": "2 Coríntios 12:9",
+        "texto": "A minha graça te basta, porque o meu poder se aperfeiçoa na fraqueza.",
+        "fortalecimento": "Quando você se sente fraco, é aí que a força de Cristo se manifesta em sua vida."
+    }
+}
+
 # --- CONEXÃO SUPABASE ---
 supabase: Client = None
 try:
@@ -17,10 +39,30 @@ try:
 except Exception:
     pass
 
-# --- ESTADO DA SESSÃO ---
+# --- GERENCIAMENTO DE AUTENTICAÇÃO E LOGOUT ---
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = True
+
 if "usuario_logado" not in st.session_state:
     st.session_state["usuario_logado"] = "flsp1986@hotmail.com"
 
+# TELA DE LOGOUT / LOGIN
+if not st.session_state["autenticado"]:
+    st.title("📖 Vida Na Palavra")
+    st.subheader("Login de Acesso")
+    email_input = st.text_input("E-mail:")
+    senha_input = st.text_input("Senha:", type="password")
+    
+    if st.button("Entrar"):
+        if email_input:
+            st.session_state["autenticado"] = True
+            st.session_state["usuario_logado"] = email_input
+            st.rerun()
+        else:
+            st.error("Informe seu e-mail.")
+    st.stop() # INTERROMPE O APP AQUI SE NÃO ESTIVER LOGADO
+
+# --- INICIALIZAÇÃO DE ESTADOS ---
 if "favoritos" not in st.session_state:
     st.session_state["favoritos"] = []
 
@@ -32,12 +74,14 @@ if "data_selecionada" not in st.session_state:
 
 user_email = st.session_state["usuario_logado"]
 
-# --- BARRA LATERAL ---
+# --- BARRA LATERAL (SIDEBAR) ---
 st.sidebar.title("📖 Vida Na Palavra")
 st.sidebar.text(f"Usuário: {user_email}")
 
+# CORREÇÃO DO BOTÃO DE LOGOUT
 if st.sidebar.button("Sair / Logout"):
-    st.session_state.clear()
+    st.session_state["autenticado"] = False
+    st.session_state["usuario_logado"] = ""
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -53,6 +97,7 @@ menu = st.sidebar.radio(
 if menu == "Devocional Diário":
     st.title("📖 Devocional Diário")
     
+    # NAVEGAÇÃO DE DATAS
     col_anterior, col_data, col_proximo = st.columns([1, 2, 1])
     
     with col_anterior:
@@ -79,13 +124,20 @@ if menu == "Devocional Diário":
     data_formatada = st.session_state["data_selecionada"].strftime("%d/%m/%Y")
     devocional_id = f"Devocional_{data_formatada}"
 
-    st.markdown("---")
-    
-    st.header("A Renovação Diária da Fé")
-    st.subheader("📖 Lamentações 3:22-23")
-    st.write("As misericórdias do Senhor são a causa de não sermos consumidos; elas se renovam a cada manhã. Grande é a tua fidelidade.")
+    # CARREGA CONTEÚDO DINÂMICO
+    conteudo = DEVOCIONAIS_BD.get(data_formatada, {
+        "titulo": "Meditação na Palavra",
+        "versiculo": "Salmos 119:105",
+        "texto": "Lâmpada para os meus pés é tua palavra e luz, para o meu caminho.",
+        "fortalecimento": "A Palavra de Deus é o alicerce seguro para todas as suas decisões de hoje."
+    })
 
-    # CONSULTA FAVORITO
+    st.markdown("---")
+    st.header(conteudo["titulo"])
+    st.subheader(f"📖 {conteudo['versiculo']}")
+    st.write(conteudo["texto"])
+
+    # CONSULTA FAVORITO NO SUPABASE/SESSÃO
     e_favorito = devocional_id in st.session_state["favoritos"]
     if supabase:
         try:
@@ -118,7 +170,7 @@ if menu == "Devocional Diário":
 
     st.markdown("---")
     st.subheader("💡 Fortalecimento Espiritual do Dia")
-    st.info("Deus renova as suas forças a cada amanhecer. Não carregue o peso de ontem no dia de hoje.")
+    st.info(conteudo["fortalecimento"])
 
     st.markdown("---")
     st.subheader("📝 Minhas Anotações e Reflexão Pessoal")
@@ -158,7 +210,7 @@ if menu == "Devocional Diário":
             st.warning("Escreva uma reflexão antes de salvar.")
 
 
-# --- ROTA 2: MEUS FAVORITOS E REFLEXÕES (IMPRESSÃO ELEGANTE) ---
+# --- ROTA 2: MEUS FAVORITOS E REFLEXÕES (EXPORTAÇÃO ELEGANTE) ---
 elif menu == "Meus Favoritos":
     st.title("⭐ Meus Favoritos e Minhas Reflexões")
     
@@ -177,7 +229,7 @@ elif menu == "Meus Favoritos":
         if favs:
             st.subheader("Seus Devocionais Guardados:")
             for item in set(favs):
-                st.success(f"⭐ {item} - A Renovação Diária da Fé")
+                st.success(f"⭐ {item}")
         else:
             st.info("Você não possui devocionais favoritados no momento.")
 
@@ -195,7 +247,6 @@ elif menu == "Meus Favoritos":
         if notas_dict and any(t.strip() for t in notas_dict.values()):
             st.subheader("Histórico de Reflexões Salvas:")
             
-            # MONTAGEM DO DOCUMENTO ELEGANTE (HTML/WORD PREPARADO PARA IMPRESSÃO)
             html_impressao = f"""
             <!DOCTYPE html>
             <html>
@@ -203,55 +254,11 @@ elif menu == "Meus Favoritos":
                 <meta charset="utf-8">
                 <title>Caderno de Reflexões - Vida Na Palavra</title>
                 <style>
-                    body {{
-                        font-family: 'Georgia', 'Times New Roman', serif;
-                        margin: 40px;
-                        color: #2c3e50;
-                        line-height: 1.6;
-                    }}
-                    .header {{
-                        text-align: center;
-                        border-bottom: 2px solid #2c3e50;
-                        padding-bottom: 15px;
-                        margin-bottom: 30px;
-                    }}
-                    .header h1 {{
-                        font-size: 24px;
-                        margin: 0;
-                        color: #1a252f;
-                    }}
-                    .header p {{
-                        font-size: 13px;
-                        color: #7f8c8d;
-                        margin-top: 5px;
-                    }}
-                    .card {{
-                        background: #fdfdfd;
-                        border-left: 4px solid #3498db;
-                        padding: 15px 20px;
-                        margin-bottom: 25px;
-                        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                        border-radius: 2px;
-                    }}
-                    .card-title {{
-                        font-weight: bold;
-                        font-size: 16px;
-                        color: #2980b9;
-                        margin-bottom: 8px;
-                    }}
-                    .card-body {{
-                        font-size: 15px;
-                        white-space: pre-wrap;
-                        color: #34495e;
-                    }}
-                    .footer {{
-                        margin-top: 40px;
-                        text-align: center;
-                        font-size: 12px;
-                        color: #bdc3c7;
-                        border-top: 1px solid #ecf0f1;
-                        padding-top: 10px;
-                    }}
+                    body {{ font-family: 'Georgia', serif; margin: 40px; color: #2c3e50; line-height: 1.6; }}
+                    .header {{ text-align: center; border-bottom: 2px solid #2c3e50; padding-bottom: 15px; margin-bottom: 30px; }}
+                    .card {{ background: #fdfdfd; border-left: 4px solid #3498db; padding: 15px 20px; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+                    .card-title {{ font-weight: bold; font-size: 16px; color: #2980b9; margin-bottom: 8px; }}
+                    .card-body {{ font-size: 15px; white-space: pre-wrap; color: #34495e; }}
                 </style>
             </head>
             <body>
@@ -265,8 +272,6 @@ elif menu == "Meus Favoritos":
                 if texto_item.strip():
                     st.markdown(f"**Data / Registro:** `{dev_id}`")
                     st.info(texto_item)
-                    
-                    # Adiciona cada card elegante no HTML
                     html_impressao += f"""
                     <div class="card">
                         <div class="card-title">📌 Registro: {dev_id.replace('_', ' ')}</div>
@@ -274,16 +279,9 @@ elif menu == "Meus Favoritos":
                     </div>
                     """
             
-            html_impressao += """
-                <div class="footer">
-                    <p>Vida Na Palavra - Fortalecimento Diário na Fé</p>
-                </div>
-            </body>
-            </html>
-            """
+            html_impressao += "</body></html>"
             
             st.markdown("---")
-            # BOTÃO PARA BAIXAR DOCUMENTO FORMATADO (ABRE PERFEITO NO NAVEGADOR OU WORD)
             st.download_button(
                 label="📄 Baixar Documento Formatado para Impressão",
                 data=html_impressao,
