@@ -10,9 +10,6 @@ st.set_page_config(
 )
 
 # --- CONEXÃO SUPABASE ---
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", "SUA_URL_SUPABASE_AQUI")
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "SUA_CHAVE_SUPABASE_AQUI")
-
 supabase: Client = None
 try:
     if "SUPABASE_URL" in st.secrets and "SUPABASE_KEY" in st.secrets:
@@ -29,6 +26,10 @@ if "favoritos" not in st.session_state:
 
 if "anotacoes" not in st.session_state:
     st.session_state["anotacoes"] = {}
+
+# Controle dinâmico da data selecionada
+if "data_selecionada" not in st.session_state:
+    st.session_state["data_selecionada"] = datetime.date.today()
 
 user_email = st.session_state["usuario_logado"]
 
@@ -49,20 +50,37 @@ menu = st.sidebar.radio(
     label_visibility="collapsed"
 )
 
-data_hoje = datetime.date.today().strftime("%d/%m/%Y")
-devocional_id = f"Devocional_{data_hoje}"
-
 # --- ROTA 1: DEVOCIONAL DIÁRIO ---
 if menu == "Devocional Diário":
     st.title("📖 Devocional Diário")
     
+    # Navegação Dinâmica de Datas
     col_anterior, col_data, col_proximo = st.columns([1, 2, 1])
+    
     with col_anterior:
-        st.button("⬅️ Dia Anterior")
+        if st.button("⬅️ Dia Anterior"):
+            st.session_state["data_selecionada"] -= datetime.timedelta(days=1)
+            st.rerun()
+            
     with col_data:
-        st.markdown(f"<h3 style='text-align: center;'>{data_hoje}</h3>", unsafe_allow_html=True)
+        # Seletor interativo de data
+        nova_data = st.date_input(
+            "Data do Devocional",
+            value=st.session_state["data_selecionada"],
+            format="DD/MM/YYYY",
+            label_visibility="collapsed"
+        )
+        if nova_data != st.session_state["data_selecionada"]:
+            st.session_state["data_selecionada"] = nova_data
+            st.rerun()
+            
     with col_proximo:
-        st.button("Próximo Dia ➡️")
+        if st.button("Próximo Dia ➡️"):
+            st.session_state["data_selecionada"] += datetime.timedelta(days=1)
+            st.rerun()
+
+    data_formatada = st.session_state["data_selecionada"].strftime("%d/%m/%Y")
+    devocional_id = f"Devocional_{data_formatada}"
 
     st.markdown("---")
     
@@ -70,7 +88,7 @@ if menu == "Devocional Diário":
     st.subheader("📖 Lamentações 3:22-23")
     st.write("As misericórdias do Senhor são a causa de não sermos consumidos; elas se renovam a cada manhã. Grande é a tua fidelidade.")
 
-    # TENTA BUSCAR FAVORITO NO SUPABASE (COM PROTEÇÃO)
+    # CONSULTA FAVORITO
     e_favorito = devocional_id in st.session_state["favoritos"]
     if supabase:
         try:
@@ -108,7 +126,7 @@ if menu == "Devocional Diário":
     st.markdown("---")
     st.subheader("📝 Minhas Anotações e Reflexão Pessoal")
     
-    # BUSCA ANOTAÇÃO (COM PROTEÇÃO)
+    # CONSULTA ANOTAÇÃO POR DATA
     nota_existente = st.session_state["anotacoes"].get(devocional_id, "")
     if supabase:
         try:
@@ -119,10 +137,11 @@ if menu == "Devocional Diário":
             pass
     
     texto_reflexao = st.text_area(
-        "Escreva o que Deus falou ao seu coração hoje:",
+        f"Escreva o que Deus falou ao seu coração em {data_formatada}:",
         value=nota_existente,
         placeholder="Digite aqui sua oração, insight ou reflexão espiritual...",
-        height=150
+        height=150,
+        key=f"text_{devocional_id}"
     )
     
     if st.button("💾 Salvar Anotação"):
@@ -143,13 +162,12 @@ if menu == "Devocional Diário":
             st.warning("Escreva uma reflexão antes de salvar.")
 
 
-# --- ROTA 2: MEUS FAVORITOS E REFLEXÕES (IMPRESSÃO) ---
+# --- ROTA 2: MEUS FAVORITOS E REFLEXÕES ---
 elif menu == "Meus Favoritos":
     st.title("⭐ Meus Favoritos e Minhas Reflexões")
     
     tab_fav, tab_notas = st.tabs(["📌 Devocionais Favoritos", "📝 Minhas Anotações e Reflexões"])
     
-    # --- ABA 1: FAVORITOS ---
     with tab_fav:
         favs = list(st.session_state["favoritos"])
         if supabase:
@@ -167,7 +185,6 @@ elif menu == "Meus Favoritos":
         else:
             st.info("Você não possui devocionais favoritados no momento.")
 
-    # --- ABA 2: ANOTAÇÕES / REFLEXÕES PARA IMPRIMIR ---
     with tab_notas:
         notas_dict = dict(st.session_state["anotacoes"])
         if supabase:
