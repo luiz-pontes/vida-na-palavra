@@ -9,6 +9,24 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- BASE DE DADOS DE USUÁRIOS AUTORIZADOS ---
+USUARIOS_AUTORIZADOS = {
+    "anabiabarros6@gmail.com": "CRISTO",
+    "hemmely01@gmail.com": "MARIA",
+    "cristine_barros@hotmail.com": "AMOR",
+    "flsp1986@hotmail.com": "VET",
+    "juarezpontesneto@gmail.com": "MESSI",
+    "lulumaia06luana@gmail.com": "EVANGELHO",
+    "lima.beneditalima@gmail.com": "IGREJA",
+    "alcineide0172@gmail.com": "DIACONISA",
+    "contato.drartursoares@gmail.com": "COLUNA",
+    "carlos.colares@hotmail.com": "CANINDE",
+    "lidiapcolares@hotmail.com": "FORTAL",
+    "gorete.bbarros@gmail.com": "NETO",
+    "concinhabc@gmail.com": "BOLO",
+    "layanaperez@gmail.com": "FRUT"
+}
+
 # --- BASE DE DADOS DOS DEVOCIONAIS (DINÂMICA POR DATA) ---
 DEVOCIONAIS_BD = {
     "17/09/2026": {
@@ -41,25 +59,29 @@ except Exception:
 
 # --- GERENCIAMENTO DE AUTENTICAÇÃO E LOGOUT ---
 if "autenticado" not in st.session_state:
-    st.session_state["autenticado"] = True
+    st.session_state["autenticado"] = False
 
 if "usuario_logado" not in st.session_state:
-    st.session_state["usuario_logado"] = "flsp1986@hotmail.com"
+    st.session_state["usuario_logado"] = ""
 
-# TELA DE LOGOUT / LOGIN
+# TELA DE LOGIN / BLOQUEIO DE SEGURANÇA
 if not st.session_state["autenticado"]:
     st.title("📖 Vida Na Palavra")
     st.subheader("Login de Acesso")
-    email_input = st.text_input("E-mail:")
-    senha_input = st.text_input("Senha:", type="password")
+    email_input = st.text_input("E-mail:").strip().lower()
+    senha_input = st.text_input("Senha:", type="password").strip()
     
     if st.button("Entrar"):
-        if email_input:
-            st.session_state["autenticado"] = True
-            st.session_state["usuario_logado"] = email_input
-            st.rerun()
+        if email_input and senha_input:
+            if email_input in USUARIOS_AUTORIZADOS and USUARIOS_AUTORIZADOS[email_input] == senha_input:
+                st.session_state["autenticado"] = True
+                st.session_state["usuario_logado"] = email_input
+                st.success("Login realizado com sucesso!")
+                st.rerun()
+            else:
+                st.error("E-mail ou senha incorretos / Usuário não autorizado.")
         else:
-            st.error("Informe seu e-mail.")
+            st.error("Por favor, preencha o e-mail e a senha.")
     st.stop() # INTERROMPE O APP AQUI SE NÃO ESTIVER LOGADO
 
 # --- INICIALIZAÇÃO DE ESTADOS ---
@@ -78,7 +100,7 @@ user_email = st.session_state["usuario_logado"]
 st.sidebar.title("📖 Vida Na Palavra")
 st.sidebar.text(f"Usuário: {user_email}")
 
-# CORREÇÃO DO BOTÃO DE LOGOUT
+# BOTÃO DE LOGOUT
 if st.sidebar.button("Sair / Logout"):
     st.session_state["autenticado"] = False
     st.session_state["usuario_logado"] = ""
